@@ -1,0 +1,26 @@
+{
+  "name": "external-rename-handler",
+  "version": "0.0.0",
+  "description": "Handles renames made outside of Obsidian",
+  "scripts": {
+    "build": "obsidian-dev-utils build",
+    "build:validate": "obsidian-dev-utils build:validate",
+    "dev": "obsidian-dev-utils dev",
+    "lint": "obsidian-dev-utils lint",
+    "lint:fix": "obsidian-dev-utils lint:fix",
+    "spellcheck": "obsidian-dev-utils spellcheck",
+    "version": "obsidian-dev-utils version"
+  },
+  "keywords": [],
+  "author": "mnaoumov",
+  "license": "MIT",
+  "devDependencies": {
+    "@tsconfig/strictest": "^2.0.5",
+    "@types/node": "^22.10.2",
+    "monkey-around": "^3.0.0",
+    "obsidian": "^1.7.2",
+    "obsidian-dev-utils": "^9.0.1",
+    "obsidian-typings": "^2.7.0"
+  },
+  "type": "module"
+}
