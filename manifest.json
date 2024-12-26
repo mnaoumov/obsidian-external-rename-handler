@@ -1,9 +1,10 @@
 {
   "id": "external-rename-handler",
   "name": "External Rename Handler",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Handles renames made outside of Obsidian",
   "author": "mnaoumov",
   "authorUrl": "https://github.com/mnaoumov/",
-  "isDesktopOnly": true
+  "isDesktopOnly": true,
+  "minAppVersion": "1.7.7"
 }
