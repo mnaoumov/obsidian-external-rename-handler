@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.1.0
+
+- Add `Should update links` setting
+
 ## 1.0.3
 
 - Update libs
