@@ -6,6 +6,8 @@ By default, Obsidian will not handle renames made outside of Obsidian. It treats
 
 This plugin handles renames made outside of Obsidian by treating them as a single `rename` event.
 
+For this functionality to work, Obsidian has to be running during the external renames.
+
 ## Installation
 
 - `External Rename Handler` is not available in [the official Community Plugins repository](https://obsidian.md/plugins) yet.
