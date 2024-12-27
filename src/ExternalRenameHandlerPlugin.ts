@@ -19,9 +19,17 @@ interface VaultChangeEvent {
 }
 
 export class ExternalRenameHandlerPlugin extends PluginBase {
+  private fileSystemAdapter!: FileSystemAdapter;
   private pathsToSkip = new Set<string>();
-
   private vaultChangeEvents: VaultChangeEvent[] = [];
+
+  public override onloadComplete(): void {
+    if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
+      throw new Error('Vault adapter is not a FileSystemAdapter');
+    }
+
+    this.fileSystemAdapter = this.app.vault.adapter;
+  }
 
   protected override createPluginSettings(): EmptySettings {
     return new EmptySettings();
@@ -39,8 +47,7 @@ export class ExternalRenameHandlerPlugin extends PluginBase {
   }
 
   private existsSync(path: string): boolean {
-    const adapter = this.app.vault.adapter as FileSystemAdapter;
-    return adapter.fs.existsSync(adapter.getFullRealPath(path));
+    return this.fileSystemAdapter.fs.existsSync(this.fileSystemAdapter.getFullRealPath(path));
   }
 
   private handleRename(oldPath: string, newPath: string, next: FileSystemWatchHandler, isTopLevel?: boolean): void {
@@ -104,12 +111,10 @@ export class ExternalRenameHandlerPlugin extends PluginBase {
   }
 
   private readdirSync(path: string): string[] {
-    const adapter = this.app.vault.adapter as FileSystemAdapter;
-    return adapter.fs.readdirSync(adapter.getFullRealPath(path));
+    return this.fileSystemAdapter.fs.readdirSync(this.fileSystemAdapter.getFullRealPath(path));
   }
 
   private statSync(path: string): Stats {
-    const adapter = this.app.vault.adapter as FileSystemAdapter;
-    return adapter.fs.statSync(adapter.getFullRealPath(path));
+    return this.fileSystemAdapter.fs.statSync(this.fileSystemAdapter.getFullRealPath(path));
   }
 }
