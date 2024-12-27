@@ -1,7 +1,7 @@
 {
   "id": "external-rename-handler",
   "name": "External Rename Handler",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Handles renames made outside of the app",
   "author": "mnaoumov",
   "authorUrl": "https://github.com/mnaoumov/",

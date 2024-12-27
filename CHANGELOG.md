@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.0.3
+
+- Update libs
+
 ## 1.0.2
 
 - Add check for FileSystemAdapter
