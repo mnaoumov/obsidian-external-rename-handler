@@ -9,16 +9,19 @@ import {
   PluginSettingTab
 } from 'obsidian';
 import { isFile } from 'obsidian-dev-utils/obsidian/FileSystem';
-import { EmptySettings } from 'obsidian-dev-utils/obsidian/Plugin/EmptySettings';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/Plugin/PluginBase';
+import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/RenameDeleteHandler';
 import { join } from 'obsidian-dev-utils/Path';
+
+import { ExternalRenameHandlerPluginSettings } from './ExternalRenameHandlerPluginSettings.ts';
+import { ExternalRenameHandlerPluginSettingsTab } from './ExternalRenameHandlerPluginSettingsTab.ts';
 
 interface VaultChangeEvent {
   eventType: string;
   path: string;
 }
 
-export class ExternalRenameHandlerPlugin extends PluginBase {
+export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandlerPluginSettings> {
   private fileSystemAdapter!: FileSystemAdapter;
   private pathsToSkip = new Set<string>();
   private vaultChangeEvents: VaultChangeEvent[] = [];
@@ -29,14 +32,18 @@ export class ExternalRenameHandlerPlugin extends PluginBase {
     }
 
     this.fileSystemAdapter = this.app.vault.adapter;
+    registerRenameDeleteHandlers(this, () => ({
+      shouldHandleRenames: this.settings.shouldUpdateLinks,
+      shouldUpdateFilenameAliases: true
+    }));
   }
 
-  protected override createPluginSettings(): EmptySettings {
-    return new EmptySettings();
+  protected override createPluginSettings(data: unknown): ExternalRenameHandlerPluginSettings {
+    return new ExternalRenameHandlerPluginSettings(data);
   }
 
   protected override createPluginSettingsTab(): null | PluginSettingTab {
-    return null;
+    return new ExternalRenameHandlerPluginSettingsTab(this);
   }
 
   protected override async onLayoutReady(): Promise<void> {
