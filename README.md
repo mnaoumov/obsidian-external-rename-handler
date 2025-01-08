@@ -11,7 +11,7 @@ For this functionality to work, Obsidian has to be running during the external r
 ## Installation
 
 - `External Rename Handler` is not available in [the official Community Plugins repository](https://obsidian.md/plugins) yet.
-- Beta releases can be installed through [BRAT](https://github.com/TfTHacker/obsidian42-brat).
+- Beta releases can be installed through [BRAT](https://obsidian.md/plugins?id=obsidian42-brat).
 
 ## Support
 
