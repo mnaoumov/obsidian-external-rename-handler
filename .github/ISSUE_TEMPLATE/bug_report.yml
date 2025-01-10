@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a bug and help improve the utils
+description: Report a bug and help improve the plugin
 title: "[BUG] Short description of the bug"
 labels: bug
 assignees: mnaoumov
@@ -42,7 +42,8 @@ body:
       label: Environment Information
       description: Environment Information
       value: |
-        - **obsidian-dev-utils Version**: [e.g., 1.0.0]
+        - **Plugin Version**: [e.g., 1.0.0]
+        - **Obsidian Version**: [e.g., v1.3.2]
         - **Operating System**: [e.g., Windows 10]
     validations:
       required: true
@@ -51,7 +52,8 @@ body:
       label: Attachments
       description: Required for bug reproduction
       value: |
-        - Please attach a video showing the issue
+        - Please attach a video showing the bug. It is not mandatory, but might be very helpful to speed up the bug fix
+        - Please attach a sample vault where the bug can be reproduced. It is not mandatory, but might be very helpful to speed up the bug fix
     validations:
       required: true
   - type: checkboxes
@@ -59,9 +61,11 @@ body:
       label: Confirmations
       description: Ensure the following conditions are met
       options:
-        - label: I attached a video showing the issue
+        - label: I attached a video showing the bug, or it is not necessary
           required: true
-        - label: I have tested the issue with the latest version
+        - label: I attached a sample vault where the bug can be reproduced, or it is not necessary
           required: true
-        - label: I have checked for existing issues
+        - label: I have tested the bug with the latest version of the plugin
+          required: true
+        - label: I have checked GitHub for existing bugs
           required: true
