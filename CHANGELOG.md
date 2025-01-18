@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.1.2
+
+- https://github.com/mnaoumov/obsidian-dev-utils/releases/tag/13.15.0
+
 ## 1.1.1
 
 - Add funding
