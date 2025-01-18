@@ -10,8 +10,20 @@ For this functionality to work, Obsidian has to be running during the external r
 
 ## Installation
 
-- `External Rename Handler` is not available in [the official Community Plugins repository](https://obsidian.md/plugins) yet.
+- `External Rename Handler` is available on [the official Community Plugins repository](https://obsidian.md/plugins?id=external-rename-handler).
 - Beta releases can be installed through [BRAT](https://obsidian.md/plugins?id=obsidian42-brat).
+
+## Debugging
+
+By default, debug messages for this plugin are hidden.
+
+To show them, run the following command:
+
+```js
+window.DEBUG.enable('external-rename-handler');
+```
+
+For more details, refer to the [documentation](https://github.com/mnaoumov/obsidian-dev-utils?tab=readme-ov-file#debugging).
 
 ## Support
 
