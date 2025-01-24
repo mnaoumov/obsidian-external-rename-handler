@@ -48,7 +48,9 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
 
   protected override async onLayoutReady(): Promise<void> {
     this.register(around(this.app.vault, {
-      onChange: (next): FileSystemWatchHandler => (eventType: string, path: string, oldPath?: string, stats?: FileStats) => { this.handleVaultChange(eventType, path, oldPath, stats, next); }
+      onChange: (next): FileSystemWatchHandler => (eventType: string, path: string, oldPath?: string, stats?: FileStats) => {
+        this.handleVaultChange(eventType, path, oldPath, stats, next);
+      }
     }));
     await this.app.vault.load();
   }
@@ -94,7 +96,10 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
       return;
     }
 
-    if (this.vaultChangeEvents[0]?.eventType !== 'raw' || this.vaultChangeEvents[1]?.eventType !== 'raw' || this.vaultChangeEvents[2]?.path !== this.vaultChangeEvents[1]?.path) {
+    if (
+      this.vaultChangeEvents[0]?.eventType !== 'raw' || this.vaultChangeEvents[1]?.eventType !== 'raw'
+      || this.vaultChangeEvents[2]?.path !== this.vaultChangeEvents[1]?.path
+    ) {
       handleDefault();
       return;
     }
