@@ -77,8 +77,9 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
   }
 
   private handleVaultChange(eventType: string, path: string, oldPath: string | undefined, stats: FileStats | undefined, next: FileSystemWatchHandler): void {
+    const RENAME_EVENTS_COUNT = 3;
     this.vaultChangeEvents.push({ eventType, path });
-    if (this.vaultChangeEvents.length > 3) {
+    if (this.vaultChangeEvents.length > RENAME_EVENTS_COUNT) {
       this.vaultChangeEvents.shift();
     }
 
@@ -91,14 +92,14 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
       next.call(this.app.vault, eventType, path, oldPath, stats);
     };
 
-    if (this.vaultChangeEvents.length !== 3) {
+    if (this.vaultChangeEvents.length !== RENAME_EVENTS_COUNT) {
       handleDefault();
       return;
     }
 
     if (
       this.vaultChangeEvents[0]?.eventType !== 'raw' || this.vaultChangeEvents[1]?.eventType !== 'raw'
-      || this.vaultChangeEvents[2]?.path !== this.vaultChangeEvents[1]?.path
+      || this.vaultChangeEvents[RENAME_EVENTS_COUNT - 1]?.path !== this.vaultChangeEvents[1]?.path
     ) {
       handleDefault();
       return;
@@ -114,7 +115,7 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
 
     const expectedAction = isFile(oldRenamedFile) ? 'file-created' : 'folder-created';
 
-    if (this.vaultChangeEvents[2]?.eventType !== expectedAction) {
+    if (this.vaultChangeEvents[RENAME_EVENTS_COUNT - 1]?.eventType !== expectedAction) {
       handleDefault();
       return;
     }
