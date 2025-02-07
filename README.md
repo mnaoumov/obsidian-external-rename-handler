@@ -1,12 +1,22 @@
 # External Rename Handler
 
-This is a plugin for [Obsidian](https://obsidian.md/) that handles renames made outside of Obsidian.
+This is a plugin for [Obsidian](https://obsidian.md/) that handles renames made outside of Obsidian app.
 
-By default, Obsidian will not handle renames made outside of Obsidian. It treats them as pair of `create`/`delete` events.
+By default, Obsidian will not handle renames made outside of the app. It treats them as pair of `create`/`delete` events.
 
-This plugin handles renames made outside of Obsidian by treating them as a single `rename` event.
+This plugin handles renames made outside of Obsidian app by treating them as a single `rename` event.
 
-For this functionality to work, Obsidian has to be running during the external renames.
+> [!WARNING]
+>
+> The plugin works only if Obsidian is running during the external renames.
+>
+> The plugin only handles renames for those files/folders that Obsidian tracks.
+>
+> The plugin only handles renames made inside the vault.
+>
+> The plugin doesn't handle the renames made outside of the vault even if the renamed files are referenced within the vault.
+>
+> The plugin doesn't handle the renames in files/folders that start with `.` (dot).
 
 ## Installation
 
