@@ -103,7 +103,7 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
     const event2 = this.vaultChangeEvents[RENAME_EVENTS_COUNT - 1] ?? NO_EVENT;
 
     if (event0.eventType === 'raw' && event2.eventType === 'raw') {
-      if (event1.path.startsWith(event2.path + '/')) {
+      if (event1.path.startsWith(`${event2.path}/`)) {
         this.vaultChangeEvents.pop();
       }
 
