@@ -77,6 +77,7 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
   }
 
   private handleVaultChange(eventType: string, path: string, oldPath: string | undefined, stats: FileStats | undefined, next: FileSystemWatchHandler): void {
+    const NO_EVENT = { eventType: 'raw', path: '!!NO_EVENT!!' };
     const RENAME_EVENTS_COUNT = 3;
     this.vaultChangeEvents.push({ eventType, path });
     if (this.vaultChangeEvents.length > RENAME_EVENTS_COUNT) {
@@ -97,15 +98,25 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
       return;
     }
 
-    if (
-      this.vaultChangeEvents[0]?.eventType !== 'raw' || this.vaultChangeEvents[1]?.eventType !== 'raw'
-      || this.vaultChangeEvents[RENAME_EVENTS_COUNT - 1]?.path !== this.vaultChangeEvents[1]?.path
-    ) {
+    const event0 = this.vaultChangeEvents[0] ?? NO_EVENT;
+    const event1 = this.vaultChangeEvents[1] ?? NO_EVENT;
+    const event2 = this.vaultChangeEvents[RENAME_EVENTS_COUNT - 1] ?? NO_EVENT;
+
+    if (event0.eventType === 'raw' && event2.eventType === 'raw') {
+      if (event1.path.startsWith(event2.path + '/')) {
+        this.vaultChangeEvents.pop();
+      }
+
       handleDefault();
       return;
     }
 
-    const oldRenamedPath = this.vaultChangeEvents[0].path;
+    if (event0.eventType !== 'raw' || event1.eventType !== 'raw' || event2.path !== event1.path) {
+      handleDefault();
+      return;
+    }
+
+    const oldRenamedPath = event0.path;
     const oldRenamedFile = this.app.vault.fileMap[oldRenamedPath];
 
     if (!oldRenamedFile || this.existsSync(oldRenamedPath)) {
