@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.1.9
+
+- Update libs, fix audit
+- Handle non-root renames
+
 ## 1.1.8
 
 - https://github.com/mnaoumov/obsidian-dev-utils/releases/tag/19.2.1
