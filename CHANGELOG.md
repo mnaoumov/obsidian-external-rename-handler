@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.1.10
+
+- https://github.com/mnaoumov/obsidian-dev-utils/releases/tag/19.3.0
+
 ## 1.1.9
 
 - Update libs, fix audit
