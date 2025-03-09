@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 1.1.11
+
+- Refactor complexity
+- GenericFileSystemWatchHandler
+- https://github.com/mnaoumov/obsidian-dev-utils/releases/tag/19.8.2
+
 ## 1.1.10
 
 - https://github.com/mnaoumov/obsidian-dev-utils/releases/tag/19.3.0
