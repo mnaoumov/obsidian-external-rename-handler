@@ -16,6 +16,8 @@ import { join } from 'obsidian-dev-utils/Path';
 import { ExternalRenameHandlerPluginSettings } from './ExternalRenameHandlerPluginSettings.ts';
 import { ExternalRenameHandlerPluginSettingsTab } from './ExternalRenameHandlerPluginSettingsTab.ts';
 
+type GenericFileSystemWatchHandler = (eventType: string, path?: string, oldPath?: string, stats?: FileStats) => void;
+
 interface VaultChangeEvent {
   eventType: string;
   path: string;
@@ -48,8 +50,8 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
 
   protected override async onLayoutReady(): Promise<void> {
     this.register(around(this.app.vault, {
-      onChange: (next): FileSystemWatchHandler => (eventType: string, path: string, oldPath?: string, stats?: FileStats) => {
-        this.handleVaultChange(eventType, path, oldPath, stats, next);
+      onChange: (next): FileSystemWatchHandler => (eventType: string, path?: string, oldPath?: string, stats?: FileStats) => {
+        this.handleVaultChange(eventType, path, oldPath, stats, next as GenericFileSystemWatchHandler);
       }
     }));
     await this.app.vault.load();
@@ -59,7 +61,7 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
     return this.fileSystemAdapter.fs.existsSync(this.fileSystemAdapter.getFullRealPath(path));
   }
 
-  private handleRename(oldPath: string, newPath: string, next: FileSystemWatchHandler, isTopLevel?: boolean): void {
+  private handleRename(oldPath: string, newPath: string, next: GenericFileSystemWatchHandler, isTopLevel?: boolean): void {
     this.pathsToSkip.add(oldPath);
     if (!isTopLevel) {
       this.pathsToSkip.add(newPath);
@@ -76,7 +78,22 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
     }
   }
 
-  private handleVaultChange(eventType: string, path: string, oldPath: string | undefined, stats: FileStats | undefined, next: FileSystemWatchHandler): void {
+  private handleVaultChange(
+    eventType: string,
+    path: string | undefined,
+    oldPath: string | undefined,
+    stats: FileStats | undefined,
+    next: GenericFileSystemWatchHandler
+  ): void {
+    if (eventType === 'closed') {
+      next.call(this.app.vault, 'closed');
+      return;
+    }
+
+    if (path === undefined) {
+      return;
+    }
+
     const NO_EVENT = { eventType: 'raw', path: '!!NO_EVENT!!' };
     const RENAME_EVENTS_COUNT = 3;
     this.vaultChangeEvents.push({ eventType, path });
