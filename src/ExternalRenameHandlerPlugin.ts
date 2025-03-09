@@ -61,6 +61,11 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
     return this.fileSystemAdapter.fs.existsSync(this.fileSystemAdapter.getFullRealPath(path));
   }
 
+  private getEvent(index: number): VaultChangeEvent {
+    const NO_EVENT = { eventType: 'raw', path: '!!NO_EVENT!!' };
+    return this.vaultChangeEvents[index] ?? NO_EVENT;
+  }
+
   private handleRename(oldPath: string, newPath: string, next: GenericFileSystemWatchHandler, isTopLevel?: boolean): void {
     this.pathsToSkip.add(oldPath);
     if (!isTopLevel) {
@@ -94,7 +99,6 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
       return;
     }
 
-    const NO_EVENT = { eventType: 'raw', path: '!!NO_EVENT!!' };
     const RENAME_EVENTS_COUNT = 3;
     this.vaultChangeEvents.push({ eventType, path });
     if (this.vaultChangeEvents.length > RENAME_EVENTS_COUNT) {
@@ -115,9 +119,9 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
       return;
     }
 
-    const event0 = this.vaultChangeEvents[0] ?? NO_EVENT;
-    const event1 = this.vaultChangeEvents[1] ?? NO_EVENT;
-    const event2 = this.vaultChangeEvents[RENAME_EVENTS_COUNT - 1] ?? NO_EVENT;
+    const event0 = this.getEvent(0);
+    const event1 = this.getEvent(1);
+    const event2 = this.getEvent(RENAME_EVENTS_COUNT - 1);
 
     if (event0.eventType === 'raw' && event2.eventType === 'raw') {
       if (event1.path.startsWith(`${event2.path}/`)) {
