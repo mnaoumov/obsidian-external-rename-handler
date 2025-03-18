@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.0.0
+
+- Switch to more reliable watcher
+
 ## 1.1.11
 
 - Refactor complexity
