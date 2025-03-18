@@ -64,17 +64,28 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
       case 'rename':
       case 'renameDir': {
         const oldPath = this.getVaultPath(targetPath);
+        const newPath = this.getVaultPath(targetPathNext);
+
+        if (this.isDotFile(oldPath) || this.isDotFile(newPath)) {
+          this.originalOnFileChange(oldPath);
+          this.originalOnFileChange(newPath);
+          return;
+        }
+
         if (!Object.hasOwn(this.app.vault.fileMap, oldPath)) {
           return;
         }
 
-        const newPath = this.getVaultPath(targetPathNext);
         this.app.vault.onChange('renamed', newPath, oldPath);
         return;
       }
       default:
         this.originalOnFileChange(this.getVaultPath(targetPath));
     }
+  }
+
+  private isDotFile(path: string): boolean {
+    return path.split('/').some((part) => part.startsWith('.'));
   }
 
   private registerWatcher(): void {
