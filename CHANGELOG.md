@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.0.1
+
+- https://github.com/mnaoumov/obsidian-dev-utils/releases/tag/19.17.3
+
 ## 2.0.0
 
 - Switch to more reliable watcher
