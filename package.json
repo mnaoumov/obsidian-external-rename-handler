@@ -23,7 +23,10 @@
     "monkey-around": "^3.0.0",
     "obsidian": "^1.8.7",
     "obsidian-dev-utils": "^19.8.2",
-    "obsidian-typings": "^2.35.0"
+    "obsidian-typings": "^2.35.0",
+    "patch-package": "^8.0.0",
+    "tsex": "^4.0.2",
+    "watcher": "^2.3.1"
   },
   "overrides": {
     "esbuild": "$esbuild"
