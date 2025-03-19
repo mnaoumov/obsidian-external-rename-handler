@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2.4.0
+
+- Prefilter dotFiles
+- Make polling configurable
+- https://github.com/mnaoumov/obsidian-dev-utils/releases/tag/19.18.0
+
 ## 2.3.0
 
 - Make polling configurable
