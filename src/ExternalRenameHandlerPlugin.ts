@@ -159,12 +159,12 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
 
     this.watcher = watch('.', {
       atomic: true,
+      binaryInterval: this.settings.pollingIntervalInMilliseconds,
       cwd: this.app.vault.adapter.basePath,
       ignoreInitial: true,
-      persistent: false,
-      usePolling: this.settings.pollingIntervalInMilliseconds > 0,
       interval: this.settings.pollingIntervalInMilliseconds,
-      binaryInterval: this.settings.pollingIntervalInMilliseconds
+      persistent: false,
+      usePolling: this.settings.pollingIntervalInMilliseconds > 0
     });
 
     this.watcher.on('error', this.handleWatcherError.bind(this));

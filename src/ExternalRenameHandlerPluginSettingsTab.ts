@@ -28,8 +28,7 @@ export class ExternalRenameHandlerPluginSettingsTab extends PluginSettingsTabBas
       }))
       .addNumber((numberComponent) => {
         this.bind(numberComponent, 'pollingIntervalInMilliseconds')
-          .setMin(0)
-          .setStep(100);
+          .setMin(0);
         numberComponent.inputEl.required = true;
       });
   }
