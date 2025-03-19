@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.1.0
+
+- Switch to chokidar
+
 ## 2.0.1
 
 - https://github.com/mnaoumov/obsidian-dev-utils/releases/tag/19.17.3
