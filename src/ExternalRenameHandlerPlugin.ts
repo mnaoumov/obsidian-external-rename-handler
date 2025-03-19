@@ -1,25 +1,32 @@
+import type { EventName } from 'chokidar/handler.js';
+// eslint-disable-next-line import-x/no-nodejs-modules
+import type { Stats } from 'node:fs';
+
+import { watch } from 'chokidar';
 import { around } from 'monkey-around';
 import {
   FileSystemAdapter,
   PluginSettingTab
 } from 'obsidian';
+import { convertAsyncToSync } from 'obsidian-dev-utils/Async';
+import { printError } from 'obsidian-dev-utils/Error';
 import { noop } from 'obsidian-dev-utils/Function';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/Plugin/PluginBase';
 import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/RenameDeleteHandler';
-import {
-  relative,
-  toPosixPath
-} from 'obsidian-dev-utils/Path';
-import Watcher from 'watcher';
+import { toPosixPath } from 'obsidian-dev-utils/Path';
 
 import { ExternalRenameHandlerPluginSettings } from './ExternalRenameHandlerPluginSettings.ts';
 import { ExternalRenameHandlerPluginSettingsTab } from './ExternalRenameHandlerPluginSettingsTab.ts';
 
 type OnFileChangeFn = FileSystemAdapter['onFileChange'];
 
+const RENAME_DETECTION_TIMEOUT_IN_MS = 1000;
+
 export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandlerPluginSettings> {
   private fileSystemAdapter!: FileSystemAdapter;
+  private inoPathMap = new Map<number, string>();
   private originalOnFileChange!: OnFileChangeFn;
+  private pathInoMap = new Map<string, number>();
   public override onloadComplete(): void {
     if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
       throw new Error('Vault adapter is not a FileSystemAdapter');
@@ -51,36 +58,63 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
     this.registerWatcher();
   }
 
-  private getVaultPath(path: string): string {
-    return relative(toPosixPath(this.app.vault.adapter.basePath), toPosixPath(path)) || '/';
-  }
-
-  private handleWatcherError(): void {
+  private handleWatcherError(error: unknown): void {
+    printError(new Error('File system watcher error', { cause: error }));
     this.originalOnFileChange('/');
   }
 
-  private handleWatcherEvent(event: string, targetPath: string, targetPathNext: string): void {
+  private handleWatcherEvent(event: EventName, path: string, stats?: Stats): void {
+    path = toPosixPath(path) || '/';
+
+    if (this.isDotFile(path)) {
+      this.originalOnFileChange(path);
+      return;
+    }
+
     switch (event) {
-      case 'rename':
-      case 'renameDir': {
-        const oldPath = this.getVaultPath(targetPath);
-        const newPath = this.getVaultPath(targetPathNext);
-
-        if (this.isDotFile(oldPath) || this.isDotFile(newPath)) {
-          this.originalOnFileChange(oldPath);
-          this.originalOnFileChange(newPath);
+      case 'add':
+      case 'addDir': {
+        if (path === '/') {
           return;
         }
-
-        if (!Object.hasOwn(this.app.vault.fileMap, oldPath)) {
+        if (!stats) {
+          this.originalOnFileChange(path);
           return;
         }
+        const oldPath = this.inoPathMap.get(stats.ino);
+        const isRename = oldPath !== undefined && oldPath !== path && !this.isDotFile(oldPath) && !this.isDotFile(path);
+        this.inoPathMap.set(stats.ino, path);
+        if (oldPath !== undefined && !this.isDotFile(oldPath)) {
+          this.pathInoMap.delete(oldPath);
+        }
+        this.pathInoMap.set(path, stats.ino);
 
-        this.app.vault.onChange('renamed', newPath, oldPath);
-        return;
+        if (isRename) {
+          this.app.vault.onChange('renamed', path, oldPath);
+        } else {
+          this.originalOnFileChange(path);
+        }
+        break;
+      }
+      case 'unlink':
+      case 'unlinkDir': {
+        const ino = this.pathInoMap.get(path);
+        if (ino === undefined) {
+          return;
+        }
+        setTimeout(() => {
+          if (!this.pathInoMap.has(path)) {
+            return;
+          }
+          this.inoPathMap.delete(ino);
+          this.pathInoMap.delete(path);
+          this.originalOnFileChange(path);
+        }, RENAME_DETECTION_TIMEOUT_IN_MS);
+        break;
       }
       default:
-        this.originalOnFileChange(this.getVaultPath(targetPath));
+        this.originalOnFileChange(path);
+        break;
     }
   }
 
@@ -89,16 +123,16 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
   }
 
   private registerWatcher(): void {
-    const watcher = new Watcher(this.app.vault.adapter.basePath, {
-      ignoreInitial: true,
-      native: false,
-      recursive: true,
-      renameDetection: true
+    const watcher = watch('.', {
+      atomic: true,
+      cwd: this.app.vault.adapter.basePath,
+      persistent: false,
+      usePolling: true
     });
 
     watcher.on('error', this.handleWatcherError.bind(this));
     watcher.on('all', this.handleWatcherEvent.bind(this));
 
-    this.register(() => watcher.close());
+    this.register(convertAsyncToSync(() => watcher.close()));
   }
 }
