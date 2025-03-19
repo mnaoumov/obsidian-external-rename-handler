@@ -11,9 +11,11 @@ import {
 import { convertAsyncToSync } from 'obsidian-dev-utils/Async';
 import { printError } from 'obsidian-dev-utils/Error';
 import { noop } from 'obsidian-dev-utils/Function';
+import { loop } from 'obsidian-dev-utils/obsidian/Loop';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/Plugin/PluginBase';
 import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/RenameDeleteHandler';
 import { toPosixPath } from 'obsidian-dev-utils/Path';
+import { stat } from 'obsidian-dev-utils/ScriptUtils/NodeModules';
 
 import { ExternalRenameHandlerPluginSettings } from './ExternalRenameHandlerPluginSettings.ts';
 import { ExternalRenameHandlerPluginSettingsTab } from './ExternalRenameHandlerPluginSettingsTab.ts';
@@ -47,7 +49,21 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
     return new ExternalRenameHandlerPluginSettingsTab(this);
   }
 
-  protected override onLayoutReady(): void {
+  protected override async onLayoutReady(): Promise<void> {
+    await loop({
+      abortSignal: this.abortSignal,
+      buildNoticeMessage: (file, iterationStr) => `Preparing files ${iterationStr} - ${file.path}`,
+      items: this.app.vault.getAllLoadedFiles(),
+      processItem: async (file) => {
+        if (this.isDotFile(file.path)) {
+          return;
+        }
+        const stats = await stat(this.fileSystemAdapter.getFullRealPath(file.path));
+        this.pathInoMap.set(file.path, stats.ino);
+        this.inoPathMap.set(stats.ino, file.path);
+      }
+    });
+
     this.register(around(this.fileSystemAdapter, {
       onFileChange: (next: OnFileChangeFn): OnFileChangeFn => {
         this.originalOnFileChange = next.bind(this.fileSystemAdapter);
@@ -126,6 +142,7 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
     const watcher = watch('.', {
       atomic: true,
       cwd: this.app.vault.adapter.basePath,
+      ignoreInitial: true,
       persistent: false,
       usePolling: true
     });
