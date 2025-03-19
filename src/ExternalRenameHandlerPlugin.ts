@@ -1,7 +1,6 @@
 import type { FSWatcher } from 'chokidar';
 import type { EventName } from 'chokidar/handler.js';
-// eslint-disable-next-line import-x/no-nodejs-modules
-import type { Stats } from 'node:fs';
+import type { Stats } from 'obsidian-dev-utils/ScriptUtils/NodeModules';
 
 import { watch } from 'chokidar';
 import { around } from 'monkey-around';
