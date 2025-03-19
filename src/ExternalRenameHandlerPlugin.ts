@@ -1,3 +1,4 @@
+import type { FSWatcher } from 'chokidar';
 import type { EventName } from 'chokidar/handler.js';
 // eslint-disable-next-line import-x/no-nodejs-modules
 import type { Stats } from 'node:fs';
@@ -29,6 +30,17 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
   private inoPathMap = new Map<number, string>();
   private originalOnFileChange!: OnFileChangeFn;
   private pathInoMap = new Map<string, number>();
+  private watcher: FSWatcher | null = null;
+
+  public async applyNewSettings(): Promise<void> {
+    await this.registerWatcher();
+  }
+
+  public override async onExternalSettingsChange(): Promise<void> {
+    await super.onExternalSettingsChange();
+    await this.applyNewSettings();
+  }
+
   public override onloadComplete(): void {
     if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
       throw new Error('Vault adapter is not a FileSystemAdapter');
@@ -71,7 +83,7 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
       }
     }));
 
-    this.registerWatcher();
+    await this.registerWatcher();
   }
 
   private handleWatcherError(error: unknown): void {
@@ -138,18 +150,22 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
     return path.split('/').some((part) => part.startsWith('.'));
   }
 
-  private registerWatcher(): void {
-    const watcher = watch('.', {
+  private async registerWatcher(): Promise<void> {
+    if (this.watcher) {
+      await this.watcher.close();
+    } else {
+      this.register(convertAsyncToSync(async () => this.watcher?.close()));
+    }
+
+    this.watcher = watch('.', {
       atomic: true,
       cwd: this.app.vault.adapter.basePath,
       ignoreInitial: true,
       persistent: false,
-      usePolling: true
+      usePolling: this.settings.shouldUsePolling
     });
 
-    watcher.on('error', this.handleWatcherError.bind(this));
-    watcher.on('all', this.handleWatcherEvent.bind(this));
-
-    this.register(convertAsyncToSync(() => watcher.close()));
+    this.watcher.on('error', this.handleWatcherError.bind(this));
+    this.watcher.on('all', this.handleWatcherEvent.bind(this));
   }
 }

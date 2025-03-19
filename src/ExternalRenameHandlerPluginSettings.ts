@@ -2,6 +2,7 @@ import { PluginSettingsBase } from 'obsidian-dev-utils/obsidian/Plugin/PluginSet
 
 export class ExternalRenameHandlerPluginSettings extends PluginSettingsBase {
   public shouldUpdateLinks = true;
+  public shouldUsePolling = false;
 
   public constructor(data: unknown) {
     super();
