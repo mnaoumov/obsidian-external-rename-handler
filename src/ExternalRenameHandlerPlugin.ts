@@ -149,7 +149,10 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
     return path.split('/').some((part) => part.startsWith('.'));
   }
 
-  private onFileChange(path: string): void {
+  private onFileChange(path: null | string): void {
+    if (path === null) {
+      return;
+    }
     if (this.isDotFile(path)) {
       this.originalOnFileChange(path);
     }
