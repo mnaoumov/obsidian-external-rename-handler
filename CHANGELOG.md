@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.2.0
+
+- Do initial load before watcher
+
 ## 2.1.0
 
 - Switch to chokidar
