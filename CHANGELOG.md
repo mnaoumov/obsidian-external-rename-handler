@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.3.0
+
+- Make polling configurable
+
 ## 2.2.0
 
 - Do initial load before watcher
