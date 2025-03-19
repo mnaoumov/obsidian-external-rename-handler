@@ -162,7 +162,9 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
       cwd: this.app.vault.adapter.basePath,
       ignoreInitial: true,
       persistent: false,
-      usePolling: this.settings.shouldUsePolling
+      usePolling: this.settings.pollingIntervalInMilliseconds > 0,
+      interval: this.settings.pollingIntervalInMilliseconds,
+      binaryInterval: this.settings.pollingIntervalInMilliseconds
     });
 
     this.watcher.on('error', this.handleWatcherError.bind(this));
