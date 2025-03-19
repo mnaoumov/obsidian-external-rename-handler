@@ -10,7 +10,6 @@ import {
 } from 'obsidian';
 import { convertAsyncToSync } from 'obsidian-dev-utils/Async';
 import { printError } from 'obsidian-dev-utils/Error';
-import { noop } from 'obsidian-dev-utils/Function';
 import { loop } from 'obsidian-dev-utils/obsidian/Loop';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/Plugin/PluginBase';
 import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/RenameDeleteHandler';
@@ -78,7 +77,7 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
     this.register(around(this.fileSystemAdapter, {
       onFileChange: (next: OnFileChangeFn): OnFileChangeFn => {
         this.originalOnFileChange = next.bind(this.fileSystemAdapter);
-        return noop;
+        return this.onFileChange.bind(this);
       }
     }));
 
@@ -146,7 +145,14 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
   }
 
   private isDotFile(path: string): boolean {
+    path = toPosixPath(path) || '/';
     return path.split('/').some((part) => part.startsWith('.'));
+  }
+
+  private onFileChange(path: string): void {
+    if (this.isDotFile(path)) {
+      this.originalOnFileChange(path);
+    }
   }
 
   private async registerWatcher(): Promise<void> {
@@ -160,6 +166,7 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
       atomic: true,
       binaryInterval: this.settings.pollingIntervalInMilliseconds,
       cwd: this.app.vault.adapter.basePath,
+      ignored: this.isDotFile.bind(this),
       ignoreInitial: true,
       interval: this.settings.pollingIntervalInMilliseconds,
       persistent: false,
