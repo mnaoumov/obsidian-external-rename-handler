@@ -108,18 +108,32 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
           return;
         }
         const oldPath = this.inoPathMap.get(stats.ino);
-        const isRename = oldPath !== undefined && oldPath !== path && !this.isDotFile(oldPath) && !this.isDotFile(path);
-        this.inoPathMap.set(stats.ino, path);
-        if (oldPath !== undefined && !this.isDotFile(oldPath)) {
-          this.pathInoMap.delete(oldPath);
+
+        if (oldPath === path) {
+          return;
         }
+
+        const isRename = oldPath !== undefined;
+        this.inoPathMap.set(stats.ino, path);
         this.pathInoMap.set(path, stats.ino);
 
         if (isRename) {
-          this.app.vault.onChange('renamed', path, oldPath);
-        } else {
-          this.originalOnFileChange(path);
+          this.pathInoMap.delete(oldPath);
+
+          const fileEntry = this.fileSystemAdapter.files[oldPath];
+          if (fileEntry) {
+            // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+            delete this.fileSystemAdapter.files[oldPath];
+            fileEntry.realpath = this.fileSystemAdapter.getRealPath(path);
+            this.fileSystemAdapter.files[path] = fileEntry;
+            this.app.vault.onChange('renamed', path, oldPath);
+
+            this.originalOnFileChange(oldPath);
+          }
         }
+
+        this.originalOnFileChange(path);
+
         break;
       }
       case 'unlink':
