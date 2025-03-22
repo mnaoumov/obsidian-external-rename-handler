@@ -21,8 +21,6 @@ import { ExternalRenameHandlerPluginSettingsTab } from './ExternalRenameHandlerP
 
 type OnFileChangeFn = FileSystemAdapter['onFileChange'];
 
-const RENAME_DETECTION_TIMEOUT_IN_MS = 1000;
-
 export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandlerPluginSettings> {
   private fileSystemAdapter!: FileSystemAdapter;
   private inoPathMap = new Map<number, string>();
@@ -84,6 +82,15 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
     await this.registerWatcher();
   }
 
+  private handleDeletion(ino: number, path: string): void {
+    if (this.inoPathMap.get(ino) !== path) {
+      return;
+    }
+    this.inoPathMap.delete(ino);
+    this.pathInoMap.delete(path);
+    this.originalOnFileChange(path);
+  }
+
   private handleWatcherError(error: unknown): void {
     printError(new Error('File system watcher error', { cause: error }));
     this.originalOnFileChange('/');
@@ -142,14 +149,14 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
         if (ino === undefined) {
           return;
         }
-        setTimeout(() => {
-          if (this.inoPathMap.get(ino) !== path) {
-            return;
-          }
-          this.inoPathMap.delete(ino);
-          this.pathInoMap.delete(path);
-          this.originalOnFileChange(path);
-        }, RENAME_DETECTION_TIMEOUT_IN_MS);
+
+        if (this.settings.deletionRenameDetectionTimeoutInMilliseconds > 0) {
+          setTimeout(() => {
+            this.handleDeletion(ino, path);
+          }, this.settings.deletionRenameDetectionTimeoutInMilliseconds);
+        } else {
+          this.handleDeletion(ino, path);
+        }
         break;
       }
       default:
