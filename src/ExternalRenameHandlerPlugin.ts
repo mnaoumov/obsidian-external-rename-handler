@@ -143,7 +143,7 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
           return;
         }
         setTimeout(() => {
-          if (!this.pathInoMap.has(path)) {
+          if (this.inoPathMap.get(ino) !== path) {
             return;
           }
           this.inoPathMap.delete(ino);
