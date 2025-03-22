@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2.5.0
+
+- Extract `deletionRenameDetectionTimeoutInMilliseconds`
+- More accurate check for deletion
+- Improve rename detection
+- https://github.com/mnaoumov/obsidian-dev-utils/releases/tag/19.20.0
+
 ## 2.4.0
 
 - Prefilter dotFiles
