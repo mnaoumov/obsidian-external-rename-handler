@@ -28,7 +28,28 @@ export class ExternalRenameHandlerPluginSettingsTab extends PluginSettingsTabBas
       }))
       .addNumber((numberComponent) => {
         this.bind(numberComponent, 'pollingIntervalInMilliseconds')
-          .setMin(0);
+          .setMin(0)
+          .setPlaceholder('2000');
+        numberComponent.inputEl.required = true;
+      });
+
+    new SettingEx(this.containerEl)
+      .setName('Deletion/Rename detection timeout in milliseconds')
+      .setDesc(createFragment((f) => {
+        f.appendText('The timeout to distinguish deletion and rename events.');
+        f.createEl('br');
+        f.appendText('Rename events are often a pair of create/delete events, which do not require this timeout.');
+        f.createEl('br');
+        f.appendText(
+          'However, in some rare cases, the events are sent in a reverse delete/create order, where this timeout will be needed to correctly detect the rename event.'
+        );
+        f.createEl('br');
+        f.appendText('Use 0 to disable this timeout.');
+      }))
+      .addNumber((numberComponent) => {
+        this.bind(numberComponent, 'deletionRenameDetectionTimeoutInMilliseconds')
+          .setMin(0)
+          .setPlaceholder('500');
         numberComponent.inputEl.required = true;
       });
   }
