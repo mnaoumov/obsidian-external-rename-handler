@@ -20,8 +20,15 @@ This plugin handles renames made outside of Obsidian app by treating them as a s
 
 ## Installation
 
-- The plugin is available in [the official Community Plugins repository](https://obsidian.md/plugins?id=external-rename-handler).
-- [Beta releases](obsidian://brat?plugin=https://github.com/mnaoumov/obsidian-external-rename-handler) can be installed via [BRAT](https://obsidian.md/plugins?id=obsidian42-brat).
+The plugin is available in [the official Community Plugins repository](https://obsidian.md/plugins?id=external-rename-handler).
+
+### Beta versions
+
+To install the latest beta release of this plugin (regardless if it is available in [the official Community Plugins repository](https://obsidian.md/plugins) or not), follow these steps:
+
+1. Ensure you have the [BRAT plugin](https://obsidian.md/plugins?id=obsidian42-brat) installed and enabled.
+2. Click [Install via BRAT](https://intradeus.github.io/http-protocol-redirector?r=obsidian://brat?plugin=https://github.com/mnaoumov/obsidian-external-rename-handler).
+3. An Obsidian pop-up window should appear. In the window, click the `Add plugin` button once and wait a few seconds for the plugin to install.
 
 ## Debugging
 
