@@ -69,7 +69,9 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
         const stats = await stat(this.fileSystemAdapter.getFullRealPath(file.path));
         this.pathInoMap.set(file.path, stats.ino);
         this.inoPathMap.set(stats.ino, file.path);
-      }
+      },
+      progressBarTitle: 'External Rename Handler: Initializing...',
+      shouldShowProgressBar: true
     });
 
     this.register(around(this.fileSystemAdapter, {
