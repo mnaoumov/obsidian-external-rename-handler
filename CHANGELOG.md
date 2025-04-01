@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2.6.0
+
+- Add progress bar
+- https://github.com/mnaoumov/obsidian-dev-utils/releases/tag/21.1.0
+
 ## 2.5.0
 
 - Extract `deletionRenameDetectionTimeoutInMilliseconds`
