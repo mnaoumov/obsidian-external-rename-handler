@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.6.1
+
+- New template
+
 ## 2.6.0
 
 - Add progress bar
