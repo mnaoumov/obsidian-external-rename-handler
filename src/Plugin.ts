@@ -3,58 +3,53 @@ import type { EventName } from 'chokidar/handler.js';
 import type { Stats } from 'obsidian-dev-utils/ScriptUtils/NodeModules';
 
 import { watch } from 'chokidar';
-import { around } from 'monkey-around';
+import { FileSystemAdapter } from 'obsidian';
 import {
-  FileSystemAdapter,
-  PluginSettingTab
-} from 'obsidian';
-import { convertAsyncToSync } from 'obsidian-dev-utils/Async';
+  convertAsyncToSync,
+  invokeAsyncSafely
+} from 'obsidian-dev-utils/Async';
 import { printError } from 'obsidian-dev-utils/Error';
 import { loop } from 'obsidian-dev-utils/obsidian/Loop';
+import { registerPatch } from 'obsidian-dev-utils/obsidian/MonkeyAround';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/Plugin/PluginBase';
 import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/RenameDeleteHandler';
 import { toPosixPath } from 'obsidian-dev-utils/Path';
 import { stat } from 'obsidian-dev-utils/ScriptUtils/NodeModules';
 
-import { ExternalRenameHandlerPluginSettings } from './ExternalRenameHandlerPluginSettings.ts';
-import { ExternalRenameHandlerPluginSettingsTab } from './ExternalRenameHandlerPluginSettingsTab.ts';
+import type { PluginSettings } from './PluginSettings.ts';
+import type { PluginTypes } from './PluginTypes.ts';
+
+import { PluginSettingsManager } from './PluginSettingsManager.ts';
+import { PluginSettingsTab } from './PluginSettingsTab.ts';
 
 type OnFileChangeFn = FileSystemAdapter['onFileChange'];
 
-export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandlerPluginSettings> {
+export class Plugin extends PluginBase<PluginTypes> {
   private fileSystemAdapter!: FileSystemAdapter;
   private inoPathMap = new Map<number, string>();
   private originalOnFileChange!: OnFileChangeFn;
   private pathInoMap = new Map<string, number>();
   private watcher: FSWatcher | null = null;
 
-  public async applyNewSettings(): Promise<void> {
+  public override async onLoadSettings(settings: PluginSettings): Promise<void> {
+    await super.onLoadSettings(settings);
+    invokeAsyncSafely(async () => {
+      await this.waitForLifecycleEvent('layoutReady');
+      await this.registerWatcher();
+    });
+  }
+
+  public override async onSaveSettings(newSettings: PluginSettings, oldSettings: PluginSettings): Promise<void> {
+    await super.onSaveSettings(newSettings, oldSettings);
     await this.registerWatcher();
   }
 
-  public override async onExternalSettingsChange(): Promise<void> {
-    await super.onExternalSettingsChange();
-    await this.applyNewSettings();
+  protected override createPluginSettingsTab(): null | PluginSettingsTab {
+    return new PluginSettingsTab(this);
   }
 
-  public override onloadComplete(): void {
-    if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
-      throw new Error('Vault adapter is not a FileSystemAdapter');
-    }
-
-    this.fileSystemAdapter = this.app.vault.adapter;
-    registerRenameDeleteHandlers(this, () => ({
-      shouldHandleRenames: this.settings.shouldUpdateLinks,
-      shouldUpdateFilenameAliases: true
-    }));
-  }
-
-  protected override createPluginSettings(data: unknown): ExternalRenameHandlerPluginSettings {
-    return new ExternalRenameHandlerPluginSettings(data);
-  }
-
-  protected override createPluginSettingsTab(): null | PluginSettingTab {
-    return new ExternalRenameHandlerPluginSettingsTab(this);
+  protected override createSettingsManager(): PluginSettingsManager {
+    return new PluginSettingsManager(this);
   }
 
   protected override async onLayoutReady(): Promise<void> {
@@ -74,14 +69,25 @@ export class ExternalRenameHandlerPlugin extends PluginBase<ExternalRenameHandle
       shouldShowProgressBar: true
     });
 
-    this.register(around(this.fileSystemAdapter, {
+    registerPatch(this, this.fileSystemAdapter, {
       onFileChange: (next: OnFileChangeFn): OnFileChangeFn => {
         this.originalOnFileChange = next.bind(this.fileSystemAdapter);
         return this.onFileChange.bind(this);
       }
-    }));
+    });
+  }
 
-    await this.registerWatcher();
+  protected override async onloadImpl(): Promise<void> {
+    await super.onloadImpl();
+    if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
+      throw new Error('Vault adapter is not a FileSystemAdapter');
+    }
+
+    this.fileSystemAdapter = this.app.vault.adapter;
+    registerRenameDeleteHandlers(this, () => ({
+      shouldHandleRenames: this.settings.shouldUpdateLinks,
+      shouldUpdateFilenameAliases: true
+    }));
   }
 
   private handleDeletion(ino: number, path: string): void {

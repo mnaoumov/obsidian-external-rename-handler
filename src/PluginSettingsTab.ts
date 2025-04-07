@@ -1,10 +1,9 @@
-import { invokeAsyncSafely } from 'obsidian-dev-utils/Async';
 import { PluginSettingsTabBase } from 'obsidian-dev-utils/obsidian/Plugin/PluginSettingsTabBase';
 import { SettingEx } from 'obsidian-dev-utils/obsidian/SettingEx';
 
-import type { ExternalRenameHandlerPlugin } from './ExternalRenameHandlerPlugin.ts';
+import type { PluginTypes } from './PluginTypes.ts';
 
-export class ExternalRenameHandlerPluginSettingsTab extends PluginSettingsTabBase<ExternalRenameHandlerPlugin> {
+export class PluginSettingsTab extends PluginSettingsTabBase<PluginTypes> {
   public override display(): void {
     this.containerEl.empty();
 
@@ -28,9 +27,7 @@ export class ExternalRenameHandlerPluginSettingsTab extends PluginSettingsTabBas
       }))
       .addNumber((numberComponent) => {
         this.bind(numberComponent, 'pollingIntervalInMilliseconds')
-          .setMin(0)
-          .setPlaceholder('2000');
-        numberComponent.inputEl.required = true;
+          .setMin(0);
       });
 
     new SettingEx(this.containerEl)
@@ -48,13 +45,7 @@ export class ExternalRenameHandlerPluginSettingsTab extends PluginSettingsTabBas
       }))
       .addNumber((numberComponent) => {
         this.bind(numberComponent, 'deletionRenameDetectionTimeoutInMilliseconds')
-          .setMin(0)
-          .setPlaceholder('500');
-        numberComponent.inputEl.required = true;
+          .setMin(0);
       });
-  }
-
-  public override hide(): void {
-    invokeAsyncSafely(this.plugin.applyNewSettings.bind(this.plugin));
   }
 }
