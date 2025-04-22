@@ -1,6 +1,8 @@
 import type { FSWatcher } from 'chokidar';
 import type { EventName } from 'chokidar/handler.js';
+import type { ExtractPluginSettingsWrapper } from 'obsidian-dev-utils/obsidian/Plugin/PluginTypesBase';
 import type { Stats } from 'obsidian-dev-utils/ScriptUtils/NodeModules';
+import type { ReadonlyDeep } from 'type-fest';
 
 import { watch } from 'chokidar';
 import { FileSystemAdapter } from 'obsidian';
@@ -16,7 +18,6 @@ import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/Rename
 import { toPosixPath } from 'obsidian-dev-utils/Path';
 import { stat } from 'obsidian-dev-utils/ScriptUtils/NodeModules';
 
-import type { PluginSettings } from './PluginSettings.ts';
 import type { PluginTypes } from './PluginTypes.ts';
 
 import { PluginSettingsManager } from './PluginSettingsManager.ts';
@@ -31,7 +32,7 @@ export class Plugin extends PluginBase<PluginTypes> {
   private pathInoMap = new Map<string, number>();
   private watcher: FSWatcher | null = null;
 
-  public override async onLoadSettings(settings: PluginSettings, isInitialLoad: boolean): Promise<void> {
+  public override async onLoadSettings(settings: ReadonlyDeep<ExtractPluginSettingsWrapper<PluginTypes>>, isInitialLoad: boolean): Promise<void> {
     await super.onLoadSettings(settings, isInitialLoad);
     invokeAsyncSafely(async () => {
       await this.waitForLifecycleEvent('layoutReady');
@@ -39,17 +40,21 @@ export class Plugin extends PluginBase<PluginTypes> {
     });
   }
 
-  public override async onSaveSettings(newSettings: PluginSettings, oldSettings: PluginSettings, context?: unknown): Promise<void> {
+  public override async onSaveSettings(
+    newSettings: ReadonlyDeep<ExtractPluginSettingsWrapper<PluginTypes>>,
+    oldSettings: ReadonlyDeep<ExtractPluginSettingsWrapper<PluginTypes>>,
+    context?: unknown
+  ): Promise<void> {
     await super.onSaveSettings(newSettings, oldSettings, context);
     await this.registerWatcher();
   }
 
-  protected override createPluginSettingsTab(): null | PluginSettingsTab {
-    return new PluginSettingsTab(this);
-  }
-
   protected override createSettingsManager(): PluginSettingsManager {
     return new PluginSettingsManager(this);
+  }
+
+  protected override createSettingsTab(): null | PluginSettingsTab {
+    return new PluginSettingsTab(this);
   }
 
   protected override async onLayoutReady(): Promise<void> {
