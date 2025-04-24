@@ -23,11 +23,11 @@
     "@tsconfig/strictest": "^2.0.5",
     "@types/node": "^22.14.1",
     "chokidar": "^4.0.3",
-    "esbuild": "^0.25.2",
+    "esbuild": "^0.25.3",
     "jiti": "^2.4.2",
     "obsidian": "^1.8.7",
-    "obsidian-dev-utils": "^26.11.0",
-    "obsidian-typings": "^3.1.0",
+    "obsidian-dev-utils": "^26.15.2",
+    "obsidian-typings": "^3.2.1",
     "typescript": "^5.8.3"
   },
   "overrides": {
