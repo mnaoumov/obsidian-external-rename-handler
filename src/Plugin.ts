@@ -20,6 +20,7 @@ import { stat } from 'obsidian-dev-utils/ScriptUtils/NodeModules';
 
 import type { PluginTypes } from './PluginTypes.ts';
 
+import { PathInoMap } from './PathInoMap.ts';
 import { PluginSettingsManager } from './PluginSettingsManager.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
 
@@ -27,9 +28,8 @@ type OnFileChangeFn = FileSystemAdapter['onFileChange'];
 
 export class Plugin extends PluginBase<PluginTypes> {
   private fileSystemAdapter!: FileSystemAdapter;
-  private inoPathMap = new Map<number, string>();
   private originalOnFileChange!: OnFileChangeFn;
-  private pathInoMap = new Map<string, number>();
+  private pathInoMap!: PathInoMap;
   private watcher: FSWatcher | null = null;
 
   public override async onLoadSettings(settings: ReadonlyDeep<ExtractPluginSettingsWrapper<PluginTypes>>, isInitialLoad: boolean): Promise<void> {
@@ -58,21 +58,46 @@ export class Plugin extends PluginBase<PluginTypes> {
   }
 
   protected override async onLayoutReady(): Promise<void> {
+    this.pathInoMap = new PathInoMap();
+    await this.pathInoMap.init(this.app);
+    const rootIno = this.pathInoMap.getIno('/');
+    const rootStats = await stat(this.fileSystemAdapter.basePath);
+    if (rootIno !== rootStats.ino) {
+      this.pathInoMap.clear();
+    }
+
+    const cachedPaths = new Set<string>(this.pathInoMap.getPaths());
+
     await loop({
       abortSignal: this.abortSignal,
       buildNoticeMessage: (file, iterationStr) => `Preparing files ${iterationStr} - ${file.path}`,
       items: this.app.vault.getAllLoadedFiles(),
       processItem: async (file) => {
+        if (cachedPaths.delete(file.path)) {
+          return;
+        }
         if (this.isDotFile(file.path)) {
           return;
         }
         const stats = await stat(this.fileSystemAdapter.getFullRealPath(file.path));
         this.pathInoMap.set(file.path, stats.ino);
-        this.inoPathMap.set(stats.ino, file.path);
       },
       progressBarTitle: 'External Rename Handler: Initializing...',
       shouldShowProgressBar: true
     });
+
+    if (cachedPaths.size > 0) {
+      await loop({
+        abortSignal: this.abortSignal,
+        buildNoticeMessage: (path, iterationStr) => `Cleaning paths ${iterationStr} - ${path}`,
+        items: Array.from(cachedPaths),
+        processItem: (path) => {
+          this.pathInoMap.deletePath(path);
+        },
+        progressBarTitle: 'External Rename Handler: Cleanup...',
+        shouldShowProgressBar: true
+      });
+    }
 
     registerPatch(this, this.fileSystemAdapter, {
       onFileChange: (next: OnFileChangeFn): OnFileChangeFn => {
@@ -96,11 +121,10 @@ export class Plugin extends PluginBase<PluginTypes> {
   }
 
   private handleDeletion(ino: number, path: string): void {
-    if (this.inoPathMap.get(ino) !== path) {
+    if (this.pathInoMap.getPath(ino) !== path) {
       return;
     }
-    this.inoPathMap.delete(ino);
-    this.pathInoMap.delete(path);
+    this.pathInoMap.deletePath(path);
     this.originalOnFileChange(path);
   }
 
@@ -127,18 +151,17 @@ export class Plugin extends PluginBase<PluginTypes> {
           this.originalOnFileChange(path);
           return;
         }
-        const oldPath = this.inoPathMap.get(stats.ino);
+        const oldPath = this.pathInoMap.getPath(stats.ino);
 
         if (oldPath === path) {
           return;
         }
 
         const isRename = oldPath !== undefined;
-        this.inoPathMap.set(stats.ino, path);
         this.pathInoMap.set(path, stats.ino);
 
         if (isRename) {
-          this.pathInoMap.delete(oldPath);
+          this.pathInoMap.deletePath(oldPath);
 
           const fileEntry = this.fileSystemAdapter.files[oldPath];
           if (fileEntry) {
@@ -158,7 +181,7 @@ export class Plugin extends PluginBase<PluginTypes> {
       }
       case 'unlink':
       case 'unlinkDir': {
-        const ino = this.pathInoMap.get(path);
+        const ino = this.pathInoMap.getIno(path);
         if (ino === undefined) {
           return;
         }
