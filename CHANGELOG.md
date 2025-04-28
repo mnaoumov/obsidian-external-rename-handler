@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 3.0.0
+
+- Store cached data in IndexedDB
+- https://github.com/mnaoumov/obsidian-dev-utils/releases/tag/26.20.0
+
 ## 2.6.7
 
 - https://github.com/mnaoumov/obsidian-dev-utils/releases/tag/26.16.0
