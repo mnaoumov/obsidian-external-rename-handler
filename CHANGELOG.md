@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 3.0.1
+
+- Update libs
+
 ## 3.0.0
 
 - Store cached data in IndexedDB
