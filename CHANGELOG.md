@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 3.0.5
+
+- Fix build
+- Update libs
+
 ## 3.0.4
 
 - Update libs
