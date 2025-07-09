@@ -187,7 +187,7 @@ export class Plugin extends PluginBase<PluginTypes> {
         }
 
         if (this.settings.deletionRenameDetectionTimeoutInMilliseconds > 0) {
-          setTimeout(() => {
+          window.setTimeout(() => {
             this.handleDeletion(ino, path);
           }, this.settings.deletionRenameDetectionTimeoutInMilliseconds);
         } else {
