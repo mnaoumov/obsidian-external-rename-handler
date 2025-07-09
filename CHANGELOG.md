@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 3.0.6
+
+- window.setTimeout
+
 ## 3.0.5
 
 - Fix build
