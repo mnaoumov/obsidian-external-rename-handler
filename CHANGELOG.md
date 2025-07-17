@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 3.0.7
+
+- Update libs
+
 ## 3.0.6
 
 - window.setTimeout
