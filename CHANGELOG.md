@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 3.0.11
+
+- Update libs
+
 ## 3.0.10
 
 - Update libs
