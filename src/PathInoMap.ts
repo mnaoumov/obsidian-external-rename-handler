@@ -16,11 +16,11 @@ const PROCESS_STORE_ACTIONS_DEBOUNCE_INTERVAL_IN_MILLISECONDS = 5000;
 export class PathInoMap {
   private db!: IDBDatabase;
   private pendingStoreActions: ((store: IDBObjectStore) => void)[] = [];
-  private processStoreActionsDebounced = debounce(() => {
+  private readonly processStoreActionsDebounced = debounce(() => {
     this.processStoreActions();
   }, PROCESS_STORE_ACTIONS_DEBOUNCE_INTERVAL_IN_MILLISECONDS);
 
-  private twoWayMap = new TwoWayMap<string, number>();
+  private readonly twoWayMap = new TwoWayMap<string, number>();
 
   public clear(): void {
     this.twoWayMap.clear();
