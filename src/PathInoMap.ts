@@ -14,14 +14,14 @@ const DB_VERSION = 1;
 const PROCESS_STORE_ACTIONS_DEBOUNCE_INTERVAL_IN_MILLISECONDS = 5000;
 
 export class PathInoMap {
-  private _db?: IDBDatabase;
-
   protected get db(): IDBDatabase {
     if (!this._db) {
       throw new Error('db is not initialized');
     }
     return this._db;
   }
+
+  private _db?: IDBDatabase;
 
   private pendingStoreActions: ((store: IDBObjectStore) => void)[] = [];
   private readonly processStoreActionsDebounced = debounce(() => {
