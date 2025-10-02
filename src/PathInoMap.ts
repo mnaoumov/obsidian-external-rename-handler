@@ -14,7 +14,15 @@ const DB_VERSION = 1;
 const PROCESS_STORE_ACTIONS_DEBOUNCE_INTERVAL_IN_MILLISECONDS = 5000;
 
 export class PathInoMap {
-  private db!: IDBDatabase;
+  private _db?: IDBDatabase;
+
+  protected get db(): IDBDatabase {
+    if (!this._db) {
+      throw new Error('db is not initialized');
+    }
+    return this._db;
+  }
+
   private pendingStoreActions: ((store: IDBObjectStore) => void)[] = [];
   private readonly processStoreActionsDebounced = debounce(() => {
     this.processStoreActions();
@@ -62,7 +70,7 @@ export class PathInoMap {
 
     const db = await getResult(request);
 
-    this.db = db;
+    this._db = db;
     const transaction = db.transaction(STORE_NAME, 'readonly');
     const store = transaction.objectStore(STORE_NAME);
     const dbEntries = await getResult(store.getAll()) as DbEntry[];
