@@ -27,9 +27,26 @@ import { PluginSettingsTab } from './PluginSettingsTab.ts';
 type OnFileChangeFn = FileSystemAdapter['onFileChange'];
 
 export class Plugin extends PluginBase<PluginTypes> {
-  private fileSystemAdapter!: FileSystemAdapter;
-  private originalOnFileChange!: OnFileChangeFn;
-  private pathInoMap!: PathInoMap;
+  private _fileSystemAdapter?: FileSystemAdapter;
+
+  protected get fileSystemAdapter(): FileSystemAdapter {
+    if (!this._fileSystemAdapter) {
+      throw new Error('fileSystemAdapter is not initialized');
+    }
+    return this._fileSystemAdapter;
+  }
+
+  private _originalOnFileChange?: OnFileChangeFn;
+
+  protected get originalOnFileChange(): OnFileChangeFn {
+    if (!this._originalOnFileChange) {
+      throw new Error('originalOnFileChange is not initialized');
+    }
+    return this._originalOnFileChange;
+  }
+
+  private pathInoMap = new PathInoMap();
+
   private watcher: FSWatcher | null = null;
 
   public override async onLoadSettings(settings: ReadonlyDeep<ExtractPluginSettingsWrapper<PluginTypes>>, isInitialLoad: boolean): Promise<void> {
@@ -80,7 +97,7 @@ export class Plugin extends PluginBase<PluginTypes> {
           return;
         }
         const stats = await stat(this.fileSystemAdapter.getFullRealPath(file.path));
-        this.pathInoMap.set(file.path, stats.ino);
+        this.pathInoMap?.set(file.path, stats.ino);
       },
       progressBarTitle: 'External Rename Handler: Initializing...',
       shouldShowProgressBar: true
@@ -92,7 +109,7 @@ export class Plugin extends PluginBase<PluginTypes> {
         buildNoticeMessage: (path, iterationStr) => `Cleaning paths ${iterationStr} - ${path}`,
         items: Array.from(cachedPaths),
         processItem: (path) => {
-          this.pathInoMap.deletePath(path);
+          this.pathInoMap?.deletePath(path);
         },
         progressBarTitle: 'External Rename Handler: Cleanup...',
         shouldShowProgressBar: true
@@ -101,7 +118,7 @@ export class Plugin extends PluginBase<PluginTypes> {
 
     registerPatch(this, this.fileSystemAdapter, {
       onFileChange: (next: OnFileChangeFn): OnFileChangeFn => {
-        this.originalOnFileChange = next.bind(this.fileSystemAdapter);
+        this._originalOnFileChange = next.bind(this.fileSystemAdapter);
         return this.onFileChange.bind(this);
       }
     });
@@ -113,7 +130,7 @@ export class Plugin extends PluginBase<PluginTypes> {
       throw new Error('Vault adapter is not a FileSystemAdapter');
     }
 
-    this.fileSystemAdapter = this.app.vault.adapter;
+    this._fileSystemAdapter = this.app.vault.adapter;
     registerRenameDeleteHandlers(this, () => ({
       shouldHandleRenames: this.settings.shouldUpdateLinks,
       shouldUpdateFilenameAliases: true
@@ -121,7 +138,7 @@ export class Plugin extends PluginBase<PluginTypes> {
   }
 
   private handleDeletion(ino: number, path: string): void {
-    if (this.pathInoMap.getPath(ino) !== path) {
+    if (this.pathInoMap?.getPath(ino) !== path) {
       return;
     }
     this.pathInoMap.deletePath(path);
@@ -165,7 +182,7 @@ export class Plugin extends PluginBase<PluginTypes> {
 
           const fileEntry = this.fileSystemAdapter.files[oldPath];
           if (fileEntry) {
-            // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+            // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- Need to delete file entry.
             delete this.fileSystemAdapter.files[oldPath];
             fileEntry.realpath = this.fileSystemAdapter.getRealPath(path);
             this.fileSystemAdapter.files[path] = fileEntry;
