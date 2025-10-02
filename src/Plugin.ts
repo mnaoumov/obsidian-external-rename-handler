@@ -27,17 +27,6 @@ import { PluginSettingsTab } from './PluginSettingsTab.ts';
 type OnFileChangeFn = FileSystemAdapter['onFileChange'];
 
 export class Plugin extends PluginBase<PluginTypes> {
-  private _fileSystemAdapter?: FileSystemAdapter;
-
-  protected get fileSystemAdapter(): FileSystemAdapter {
-    if (!this._fileSystemAdapter) {
-      throw new Error('fileSystemAdapter is not initialized');
-    }
-    return this._fileSystemAdapter;
-  }
-
-  private _originalOnFileChange?: OnFileChangeFn;
-
   protected get originalOnFileChange(): OnFileChangeFn {
     if (!this._originalOnFileChange) {
       throw new Error('originalOnFileChange is not initialized');
@@ -45,9 +34,20 @@ export class Plugin extends PluginBase<PluginTypes> {
     return this._originalOnFileChange;
   }
 
+  private _fileSystemAdapter?: FileSystemAdapter;
+
+  private _originalOnFileChange?: OnFileChangeFn;
+
   private pathInoMap = new PathInoMap();
 
   private watcher: FSWatcher | null = null;
+
+  private get fileSystemAdapter(): FileSystemAdapter {
+    if (!this._fileSystemAdapter) {
+      throw new Error('fileSystemAdapter is not initialized');
+    }
+    return this._fileSystemAdapter;
+  }
 
   public override async onLoadSettings(settings: ReadonlyDeep<ExtractPluginSettingsWrapper<PluginTypes>>, isInitialLoad: boolean): Promise<void> {
     await super.onLoadSettings(settings, isInitialLoad);
@@ -97,7 +97,7 @@ export class Plugin extends PluginBase<PluginTypes> {
           return;
         }
         const stats = await stat(this.fileSystemAdapter.getFullRealPath(file.path));
-        this.pathInoMap?.set(file.path, stats.ino);
+        this.pathInoMap.set(file.path, stats.ino);
       },
       progressBarTitle: 'External Rename Handler: Initializing...',
       shouldShowProgressBar: true
@@ -109,7 +109,7 @@ export class Plugin extends PluginBase<PluginTypes> {
         buildNoticeMessage: (path, iterationStr) => `Cleaning paths ${iterationStr} - ${path}`,
         items: Array.from(cachedPaths),
         processItem: (path) => {
-          this.pathInoMap?.deletePath(path);
+          this.pathInoMap.deletePath(path);
         },
         progressBarTitle: 'External Rename Handler: Cleanup...',
         shouldShowProgressBar: true
@@ -138,7 +138,7 @@ export class Plugin extends PluginBase<PluginTypes> {
   }
 
   private handleDeletion(ino: number, path: string): void {
-    if (this.pathInoMap?.getPath(ino) !== path) {
+    if (this.pathInoMap.getPath(ino) !== path) {
       return;
     }
     this.pathInoMap.deletePath(path);
