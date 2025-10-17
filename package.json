@@ -1,6 +1,6 @@
 {
   "name": "external-rename-handler",
-  "version": "3.0.31",
+  "version": "3.0.32",
   "description": "Handles renames made outside of Obsidian",
   "scripts": {
     "build": "obsidian-dev-utils build",
