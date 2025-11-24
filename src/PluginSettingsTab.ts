@@ -32,7 +32,7 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginTypes> {
       });
 
     new SettingEx(this.containerEl)
-      .setName('Deletion/Rename detection timeout in milliseconds')
+      .setName('Deletion/rename detection timeout in milliseconds')
       .setDesc(createFragment((f) => {
         f.appendText('The timeout to distinguish deletion and rename events.');
         f.createEl('br');
