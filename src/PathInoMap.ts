@@ -1,7 +1,7 @@
 import type { App } from 'obsidian';
 
 import { debounce } from 'obsidian';
-import { TwoWayMap } from 'obsidian-dev-utils/TwoWayMap';
+import { TwoWayMap } from 'obsidian-dev-utils/two-way-map';
 
 const STORE_NAME = 'path-ino';
 

@@ -1,22 +1,25 @@
 import type { FSWatcher } from 'chokidar';
 import type { EventName } from 'chokidar/handler.js';
-import type { ExtractPluginSettingsWrapper } from 'obsidian-dev-utils/obsidian/plugin/plugin-types-base';
+// eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
 import type { Stats } from 'node:fs';
+import type { ExtractPluginSettingsWrapper } from 'obsidian-dev-utils/obsidian/plugin/plugin-types-base';
 import type { ReadonlyDeep } from 'type-fest';
 
 import { watch } from 'chokidar';
+// eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
+import { stat } from 'node:fs/promises';
 import { FileSystemAdapter } from 'obsidian';
 import {
   convertAsyncToSync,
   invokeAsyncSafely
 } from 'obsidian-dev-utils/async';
 import { printError } from 'obsidian-dev-utils/error';
-import { loop } from 'obsidian-dev-utils/obsidian/Loop';
+import { loop } from 'obsidian-dev-utils/obsidian/loop';
 import { registerPatch } from 'obsidian-dev-utils/obsidian/monkey-around';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin-base';
-import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/RenameDeleteHandler';
+import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/rename-delete-handler';
 import { toPosixPath } from 'obsidian-dev-utils/path';
-import { stat } from 'node:fs';
+import { getDataAdapterEx } from 'obsidian-typings/implementations';
 
 import type { PluginTypes } from './PluginTypes.ts';
 
@@ -239,10 +242,12 @@ export class Plugin extends PluginBase<PluginTypes> {
       this.register(convertAsyncToSync(async () => this.watcher?.close()));
     }
 
+    const adapter = getDataAdapterEx(this.app);
+
     this.watcher = watch('.', {
       atomic: true,
       binaryInterval: this.settings.pollingIntervalInMilliseconds,
-      cwd: this.app.vault.adapter.basePath,
+      cwd: adapter.basePath,
       ignored: this.isDotFile.bind(this),
       ignoreInitial: true,
       interval: this.settings.pollingIntervalInMilliseconds,
