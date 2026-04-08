@@ -1,7 +1,7 @@
 import type { FSWatcher } from 'chokidar';
 import type { EventName } from 'chokidar/handler.js';
-import type { ExtractPluginSettingsWrapper } from 'obsidian-dev-utils/obsidian/Plugin/PluginTypesBase';
-import type { Stats } from 'obsidian-dev-utils/ScriptUtils/NodeModules';
+import type { ExtractPluginSettingsWrapper } from 'obsidian-dev-utils/obsidian/plugin/plugin-types-base';
+import type { Stats } from 'node:fs';
 import type { ReadonlyDeep } from 'type-fest';
 
 import { watch } from 'chokidar';
@@ -9,14 +9,14 @@ import { FileSystemAdapter } from 'obsidian';
 import {
   convertAsyncToSync,
   invokeAsyncSafely
-} from 'obsidian-dev-utils/Async';
-import { printError } from 'obsidian-dev-utils/Error';
+} from 'obsidian-dev-utils/async';
+import { printError } from 'obsidian-dev-utils/error';
 import { loop } from 'obsidian-dev-utils/obsidian/Loop';
-import { registerPatch } from 'obsidian-dev-utils/obsidian/MonkeyAround';
-import { PluginBase } from 'obsidian-dev-utils/obsidian/Plugin/PluginBase';
+import { registerPatch } from 'obsidian-dev-utils/obsidian/monkey-around';
+import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin-base';
 import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/RenameDeleteHandler';
-import { toPosixPath } from 'obsidian-dev-utils/Path';
-import { stat } from 'obsidian-dev-utils/ScriptUtils/NodeModules';
+import { toPosixPath } from 'obsidian-dev-utils/path';
+import { stat } from 'node:fs';
 
 import type { PluginTypes } from './PluginTypes.ts';
 
