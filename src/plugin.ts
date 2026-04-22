@@ -6,7 +6,6 @@ import type {
   App,
   PluginManifest
 } from 'obsidian';
-import type { PluginSettingsTabBase } from 'obsidian-dev-utils/obsidian/plugin/plugin-settings-tab';
 
 import { watch } from 'chokidar';
 // eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
@@ -80,7 +79,7 @@ export class Plugin extends PluginBase {
     const settingsTab = new PluginSettingsTab({
       plugin: this,
       pluginSettingsComponent: this.pluginSettingsComponent
-    }) as PluginSettingsTabBase<object>;
+    });
 
     this.registerComponent({
       component: new PluginSettingsTabComponent(this, settingsTab)
