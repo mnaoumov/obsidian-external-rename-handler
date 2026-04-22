@@ -57,7 +57,7 @@ export class PathInoMap {
   }
 
   public async init(app: App): Promise<void> {
-    const request = window.indexedDB.open(`${app.appId}/external-rename-handler`, DB_VERSION);
+    const request = activeWindow.indexedDB.open(`${app.appId}/external-rename-handler`, DB_VERSION);
     request.addEventListener('upgradeneeded', (event) => {
       if (event.newVersion !== 1) {
         return;
@@ -120,7 +120,7 @@ async function getResult<T>(request: IDBRequest<T>): Promise<T> {
       resolve(request.result);
     });
     request.addEventListener('error', () => {
-      reject(request.error as Error);
+      reject(new Error('IndexedDB request failed', { cause: request.error }));
     });
   });
 }

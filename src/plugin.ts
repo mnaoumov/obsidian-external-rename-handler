@@ -2,8 +2,11 @@ import type { FSWatcher } from 'chokidar';
 import type { EventName } from 'chokidar/handler.js';
 // eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
 import type { Stats } from 'node:fs';
-import type { ExtractPluginSettingsWrapper } from 'obsidian-dev-utils/obsidian/plugin/plugin-types-base';
-import type { ReadonlyDeep } from 'type-fest';
+import type {
+  App,
+  PluginManifest
+} from 'obsidian';
+import type { PluginSettingsTabBase } from 'obsidian-dev-utils/obsidian/plugin/plugin-settings-tab';
 
 import { watch } from 'chokidar';
 // eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
@@ -16,20 +19,25 @@ import {
 import { printError } from 'obsidian-dev-utils/error';
 import { loop } from 'obsidian-dev-utils/obsidian/loop';
 import { registerPatch } from 'obsidian-dev-utils/obsidian/monkey-around';
-import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin-base';
+import { PluginSettingsTabComponent } from 'obsidian-dev-utils/obsidian/plugin/components/plugin-settings-tab-component';
+import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin';
 import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/rename-delete-handler';
 import { toPosixPath } from 'obsidian-dev-utils/path';
 import { getDataAdapterEx } from 'obsidian-typings/implementations';
 
-import type { PluginTypes } from './PluginTypes.ts';
+import type { PluginSettings } from './plugin-settings.ts';
 
-import { PathInoMap } from './PathInoMap.ts';
-import { PluginSettingsManager } from './PluginSettingsManager.ts';
-import { PluginSettingsTab } from './PluginSettingsTab.ts';
+import { PathInoMap } from './path-ino-map.ts';
+import { PluginSettingsComponent } from './plugin-settings-component.ts';
+import { PluginSettingsTab } from './plugin-settings-tab.ts';
 
 type OnFileChangeFn = FileSystemAdapter['onFileChange'];
 
-export class Plugin extends PluginBase<PluginTypes> {
+export class Plugin extends PluginBase {
+  public get abortSignal(): AbortSignal {
+    return this.abortSignalComponent.abortSignal;
+  }
+
   protected get originalOnFileChange(): OnFileChangeFn {
     if (!this._originalOnFileChange) {
       throw new Error('originalOnFileChange is not initialized');
@@ -43,6 +51,8 @@ export class Plugin extends PluginBase<PluginTypes> {
 
   private pathInoMap = new PathInoMap();
 
+  private readonly pluginSettingsComponent: PluginSettingsComponent;
+
   private watcher: FSWatcher | null = null;
 
   private get fileSystemAdapter(): FileSystemAdapter {
@@ -52,29 +62,29 @@ export class Plugin extends PluginBase<PluginTypes> {
     return this._fileSystemAdapter;
   }
 
-  public override async onLoadSettings(settings: ReadonlyDeep<ExtractPluginSettingsWrapper<PluginTypes>>, isInitialLoad: boolean): Promise<void> {
-    await super.onLoadSettings(settings, isInitialLoad);
-    invokeAsyncSafely(async () => {
-      await this.waitForLifecycleEvent('layoutReady');
-      await this.registerWatcher();
+  private get pluginSettings(): PluginSettings {
+    return this.pluginSettingsComponent.settings;
+  }
+
+  public constructor(app: App, manifest: PluginManifest) {
+    super(app, manifest);
+
+    this.pluginSettingsComponent = this.registerComponent({
+      component: new PluginSettingsComponent({
+        loadData: this.loadData.bind(this),
+        saveData: this.saveData.bind(this)
+      }),
+      shouldPreload: true
     });
-  }
 
-  public override async onSaveSettings(
-    newSettings: ReadonlyDeep<ExtractPluginSettingsWrapper<PluginTypes>>,
-    oldSettings: ReadonlyDeep<ExtractPluginSettingsWrapper<PluginTypes>>,
-    context?: unknown
-  ): Promise<void> {
-    await super.onSaveSettings(newSettings, oldSettings, context);
-    await this.registerWatcher();
-  }
+    const settingsTab = new PluginSettingsTab({
+      plugin: this,
+      pluginSettingsComponent: this.pluginSettingsComponent
+    }) as PluginSettingsTabBase<object>;
 
-  protected override createSettingsManager(): PluginSettingsManager {
-    return new PluginSettingsManager(this);
-  }
-
-  protected override createSettingsTab(): null | PluginSettingsTab {
-    return new PluginSettingsTab(this);
+    this.registerComponent({
+      component: new PluginSettingsTabComponent(this, settingsTab)
+    });
   }
 
   protected override async onLayoutReady(): Promise<void> {
@@ -89,7 +99,7 @@ export class Plugin extends PluginBase<PluginTypes> {
     const cachedPaths = new Set<string>(this.pathInoMap.getPaths());
 
     await loop({
-      abortSignal: this.abortSignal,
+      abortSignal: this.abortSignalComponent.abortSignal,
       buildNoticeMessage: (file, iterationStr) => `Preparing files ${iterationStr} - ${file.path}`,
       items: this.app.vault.getAllLoadedFiles(),
       processItem: async (file) => {
@@ -108,7 +118,7 @@ export class Plugin extends PluginBase<PluginTypes> {
 
     if (cachedPaths.size > 0) {
       await loop({
-        abortSignal: this.abortSignal,
+        abortSignal: this.abortSignalComponent.abortSignal,
         buildNoticeMessage: (path, iterationStr) => `Cleaning paths ${iterationStr} - ${path}`,
         items: Array.from(cachedPaths),
         processItem: (path) => {
@@ -134,8 +144,22 @@ export class Plugin extends PluginBase<PluginTypes> {
     }
 
     this._fileSystemAdapter = this.app.vault.adapter;
+
+    this.pluginSettingsComponent.on('loadSettings', () => {
+      invokeAsyncSafely(async () => {
+        await this.lifecycleEventsComponent.waitForLifecycleEvent('layoutReady');
+        await this.registerWatcher();
+      });
+    });
+
+    this.pluginSettingsComponent.on('saveSettings', () => {
+      invokeAsyncSafely(async () => {
+        await this.registerWatcher();
+      });
+    });
+
     registerRenameDeleteHandlers(this, () => ({
-      shouldHandleRenames: this.settings.shouldUpdateLinks,
+      shouldHandleRenames: this.pluginSettings.shouldUpdateLinks,
       shouldUpdateFilenameAliases: true
     }));
   }
@@ -206,10 +230,10 @@ export class Plugin extends PluginBase<PluginTypes> {
           return;
         }
 
-        if (this.settings.deletionRenameDetectionTimeoutInMilliseconds > 0) {
+        if (this.pluginSettings.deletionRenameDetectionTimeoutInMilliseconds > 0) {
           window.setTimeout(() => {
             this.handleDeletion(ino, path);
-          }, this.settings.deletionRenameDetectionTimeoutInMilliseconds);
+          }, this.pluginSettings.deletionRenameDetectionTimeoutInMilliseconds);
         } else {
           this.handleDeletion(ino, path);
         }
@@ -246,13 +270,13 @@ export class Plugin extends PluginBase<PluginTypes> {
 
     this.watcher = watch('.', {
       atomic: true,
-      binaryInterval: this.settings.pollingIntervalInMilliseconds,
+      binaryInterval: this.pluginSettings.pollingIntervalInMilliseconds,
       cwd: adapter.basePath,
       ignored: this.isDotFile.bind(this),
       ignoreInitial: true,
-      interval: this.settings.pollingIntervalInMilliseconds,
+      interval: this.pluginSettings.pollingIntervalInMilliseconds,
       persistent: false,
-      usePolling: this.settings.pollingIntervalInMilliseconds > 0
+      usePolling: this.pluginSettings.pollingIntervalInMilliseconds > 0
     });
 
     this.watcher.on('error', this.handleWatcherError.bind(this));
