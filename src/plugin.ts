@@ -24,8 +24,6 @@ import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/rename
 import { toPosixPath } from 'obsidian-dev-utils/path';
 import { getDataAdapterEx } from 'obsidian-typings/implementations';
 
-import type { PluginSettings } from './plugin-settings.ts';
-
 import { PathInoMap } from './path-ino-map.ts';
 import { PluginSettingsComponent } from './plugin-settings-component.ts';
 import { PluginSettingsTab } from './plugin-settings-tab.ts';
@@ -59,10 +57,6 @@ export class Plugin extends PluginBase {
       throw new Error('fileSystemAdapter is not initialized');
     }
     return this._fileSystemAdapter;
-  }
-
-  private get pluginSettings(): PluginSettings {
-    return this.pluginSettingsComponent.settings;
   }
 
   public constructor(app: App, manifest: PluginManifest) {
@@ -158,7 +152,7 @@ export class Plugin extends PluginBase {
     });
 
     registerRenameDeleteHandlers(this, () => ({
-      shouldHandleRenames: this.pluginSettings.shouldUpdateLinks,
+      shouldHandleRenames: this.pluginSettingsComponent.settings.shouldUpdateLinks,
       shouldUpdateFilenameAliases: true
     }));
   }
@@ -229,10 +223,10 @@ export class Plugin extends PluginBase {
           return;
         }
 
-        if (this.pluginSettings.deletionRenameDetectionTimeoutInMilliseconds > 0) {
+        if (this.pluginSettingsComponent.settings.deletionRenameDetectionTimeoutInMilliseconds > 0) {
           window.setTimeout(() => {
             this.handleDeletion(ino, path);
-          }, this.pluginSettings.deletionRenameDetectionTimeoutInMilliseconds);
+          }, this.pluginSettingsComponent.settings.deletionRenameDetectionTimeoutInMilliseconds);
         } else {
           this.handleDeletion(ino, path);
         }
@@ -269,13 +263,13 @@ export class Plugin extends PluginBase {
 
     this.watcher = watch('.', {
       atomic: true,
-      binaryInterval: this.pluginSettings.pollingIntervalInMilliseconds,
+      binaryInterval: this.pluginSettingsComponent.settings.pollingIntervalInMilliseconds,
       cwd: adapter.basePath,
       ignored: this.isDotFile.bind(this),
       ignoreInitial: true,
-      interval: this.pluginSettings.pollingIntervalInMilliseconds,
+      interval: this.pluginSettingsComponent.settings.pollingIntervalInMilliseconds,
       persistent: false,
-      usePolling: this.pluginSettings.pollingIntervalInMilliseconds > 0
+      usePolling: this.pluginSettingsComponent.settings.pollingIntervalInMilliseconds > 0
     });
 
     this.watcher.on('error', this.handleWatcherError.bind(this));
