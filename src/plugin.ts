@@ -22,7 +22,8 @@ import { PluginSettingsTabComponent } from 'obsidian-dev-utils/obsidian/plugin/c
 import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin';
 import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/rename-delete-handler';
 import { toPosixPath } from 'obsidian-dev-utils/path';
-import { getDataAdapterEx } from 'obsidian-typings/implementations';
+import { PluginDataHandler } from 'obsidian-dev-utils/obsidian/data-handler';
+import { getDataAdapterEx } from '@obsidian-typings/obsidian-public-latest/implementations';
 
 import { PathInoMap } from './path-ino-map.ts';
 import { PluginSettingsComponent } from './plugin-settings-component.ts';
@@ -62,19 +63,14 @@ export class Plugin extends PluginBase {
   public constructor(app: App, manifest: PluginManifest) {
     super(app, manifest);
 
-    this.pluginSettingsComponent = this.registerComponent({
-      component: new PluginSettingsComponent(this),
-      shouldPreload: true
-    });
+    this.pluginSettingsComponent = this.addChild(new PluginSettingsComponent(new PluginDataHandler(this)));
 
     const settingsTab = new PluginSettingsTab({
       plugin: this,
       pluginSettingsComponent: this.pluginSettingsComponent
     });
 
-    this.registerComponent({
-      component: new PluginSettingsTabComponent(this, settingsTab)
-    });
+    this.addChild(new PluginSettingsTabComponent({ plugin: this, pluginSettingsTab: settingsTab }));
   }
 
   protected override async onLayoutReady(): Promise<void> {
