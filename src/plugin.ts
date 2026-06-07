@@ -6,24 +6,24 @@ import type {
   App,
   PluginManifest
 } from 'obsidian';
+import type { RenameDeleteHandlerSettings } from 'obsidian-dev-utils/obsidian/components/rename-delete-handler-component';
 
+import { getDataAdapterEx } from '@obsidian-typings/obsidian-public-latest/implementations';
 import { watch } from 'chokidar';
 // eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
 import { stat } from 'node:fs/promises';
 import { FileSystemAdapter } from 'obsidian';
-import {
-  convertAsyncToSync,
-  invokeAsyncSafely
-} from 'obsidian-dev-utils/async';
+import { convertAsyncToSync } from 'obsidian-dev-utils/async';
 import { printError } from 'obsidian-dev-utils/error';
-import { loop } from 'obsidian-dev-utils/obsidian/loop';
-import { registerPatch } from 'obsidian-dev-utils/obsidian/monkey-around';
+import { registerAsyncEvent } from 'obsidian-dev-utils/obsidian/components/async-events-component';
+import { MonkeyAroundComponent } from 'obsidian-dev-utils/obsidian/components/monkey-around-component';
 import { PluginSettingsTabComponent } from 'obsidian-dev-utils/obsidian/components/plugin-settings-tab-component';
-import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin';
-import { registerRenameDeleteHandlers } from 'obsidian-dev-utils/obsidian/rename-delete-handler';
-import { toPosixPath } from 'obsidian-dev-utils/path';
+import { RenameDeleteHandlerComponent } from 'obsidian-dev-utils/obsidian/components/rename-delete-handler-component';
 import { PluginDataHandler } from 'obsidian-dev-utils/obsidian/data-handler';
-import { getDataAdapterEx } from '@obsidian-typings/obsidian-public-latest/implementations';
+import { loop } from 'obsidian-dev-utils/obsidian/loop';
+import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin';
+import { PluginEventSourceImpl } from 'obsidian-dev-utils/obsidian/plugin/plugin-event-source';
+import { toPosixPath } from 'obsidian-dev-utils/path';
 
 import { PathInoMap } from './path-ino-map.ts';
 import { PluginSettingsComponent } from './plugin-settings-component.ts';
@@ -63,7 +63,12 @@ export class Plugin extends PluginBase {
   public constructor(app: App, manifest: PluginManifest) {
     super(app, manifest);
 
-    this.pluginSettingsComponent = this.addChild(new PluginSettingsComponent(new PluginDataHandler(this)));
+    this.pluginSettingsComponent = this.addChild(
+      new PluginSettingsComponent({
+        dataHandler: new PluginDataHandler(this),
+        pluginEventSource: new PluginEventSourceImpl(this)
+      })
+    );
 
     const settingsTab = new PluginSettingsTab({
       plugin: this,
@@ -71,9 +76,31 @@ export class Plugin extends PluginBase {
     });
 
     this.addChild(new PluginSettingsTabComponent({ plugin: this, pluginSettingsTab: settingsTab }));
+
+    this.addChild(
+      new RenameDeleteHandlerComponent({
+        abortSignalComponent: this.abortSignalComponent,
+        app: this.app,
+        pluginId: this.manifest.id,
+        settingsBuilder: (): Partial<RenameDeleteHandlerSettings> => ({
+          shouldHandleRenames: this.pluginSettingsComponent.settings.shouldUpdateLinks,
+          shouldUpdateFileNameAliases: true
+        })
+      })
+    );
   }
 
-  protected override async onLayoutReady(): Promise<void> {
+  public override async onload(): Promise<void> {
+    await super.onload();
+
+    if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
+      throw new Error('Vault adapter is not a FileSystemAdapter');
+    }
+
+    this._fileSystemAdapter = this.app.vault.adapter;
+  }
+
+  protected async onLayoutReady(): Promise<void> {
     this.pathInoMap = new PathInoMap();
     await this.pathInoMap.init(this.app);
     const rootIno = this.pathInoMap.getIno('/');
@@ -115,39 +142,27 @@ export class Plugin extends PluginBase {
       });
     }
 
-    registerPatch(this, this.fileSystemAdapter, {
+    const patch = this.addChild(new MonkeyAroundComponent());
+    patch.registerPatch(this.fileSystemAdapter, {
       onFileChange: (next: OnFileChangeFn): OnFileChangeFn => {
         this._originalOnFileChange = next.bind(this.fileSystemAdapter);
         return this.onFileChange.bind(this);
       }
     });
-  }
 
-  protected override async onloadImpl(): Promise<void> {
-    await super.onloadImpl();
-    if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
-      throw new Error('Vault adapter is not a FileSystemAdapter');
-    }
-
-    this._fileSystemAdapter = this.app.vault.adapter;
-
-    this.pluginSettingsComponent.on('loadSettings', () => {
-      invokeAsyncSafely(async () => {
-        await this.lifecycleEventsComponent.waitForLifecycleEvent('layoutReady');
+    registerAsyncEvent(
+      this,
+      this.pluginSettingsComponent.on('loadSettings', async () => {
         await this.registerWatcher();
-      });
-    });
+      })
+    );
 
-    this.pluginSettingsComponent.on('saveSettings', () => {
-      invokeAsyncSafely(async () => {
+    registerAsyncEvent(
+      this,
+      this.pluginSettingsComponent.on('saveSettings', async () => {
         await this.registerWatcher();
-      });
-    });
-
-    registerRenameDeleteHandlers(this, () => ({
-      shouldHandleRenames: this.pluginSettingsComponent.settings.shouldUpdateLinks,
-      shouldUpdateFilenameAliases: true
-    }));
+      })
+    );
   }
 
   private handleDeletion(ino: number, path: string): void {
