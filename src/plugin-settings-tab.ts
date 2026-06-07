@@ -1,16 +1,19 @@
-import type { PluginSettingsTabBaseParams } from 'obsidian-dev-utils/obsidian/plugin/plugin-settings-tab';
+import type { PluginSettingsTabBaseConstructorParams } from 'obsidian-dev-utils/obsidian/plugin/plugin-settings-tab';
 
 import { PluginSettingsTabBase } from 'obsidian-dev-utils/obsidian/plugin/plugin-settings-tab';
 import { SettingEx } from 'obsidian-dev-utils/obsidian/setting-ex';
 
 import type { PluginSettings } from './plugin-settings.ts';
 
+type PluginSettingsTabConstructorParams = PluginSettingsTabBaseConstructorParams<PluginSettings>;
+
 export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
-  public constructor(params: PluginSettingsTabBaseParams<PluginSettings>) {
+  public constructor(params: PluginSettingsTabConstructorParams) {
     super(params);
   }
 
   public override display(): void {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- super.display() calls the PluginSettingsTabBase override; the inherited @deprecated tag on Obsidian's SettingTab.display propagates via TS getJsDocTags.
     super.display();
     this.containerEl.empty();
 
