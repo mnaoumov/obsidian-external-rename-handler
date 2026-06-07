@@ -470,6 +470,7 @@ describe('Plugin', () => {
     it('should handle addDir event', async () => {
       await setup();
       pathInoMapMocks.getPath.mockReturnValue(undefined);
+      // Cspell:ignore newfolder -- test path fixture for an added directory.
       getHandler()('addDir', 'newfolder', { ino: 400 });
       expect(pathInoMapMocks.set).toHaveBeenCalledWith('newfolder', 400);
     });
