@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 3.0.41
+
+- chore: update libs
+- chore: replace inline cspell:ignore with cspell.json words
+- chore: upgrade dependencies and green up all checks
+- chore: upgrade dependencies and green up all checks
+- chore: update libs
+- refactor: migrate to @obsidian-typings/obsidian-public-latest - Replace obsidian-typings with @obsidian-typings/obsidian-public-latest - Update vitest config: replace ssr.noExternal with server.deps.inline - Add DOM.Iterable to tsconfig lib - Remove obsolete overrides (@antfu/utils, boolean, dompurify) - Upgrade dependencies via npm-check-updates
+- build: replace commitizen with czg Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+- refactor: simplify PluginSettingsComponent constructor to accept plugin directly Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+- refactor: pass pluginSettingsComponent instead of pluginSettings getter Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+- fix: remove unnecessary PluginSettingsTabBase cast after TS 6 upgrade Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+- refactor!: migrate to obsidian-dev-utils v2 component architecture - Delete PluginTypes.ts and remove generic from PluginBase - Convert PluginSettingsManager to PluginSettingsComponent with params-based constructor - Use constructor registerComponent() pattern for settings and settings tab - Replace onLoadSettings/onSaveSettings overrides with event subscriptions - Rename all source files to kebab-case - Update obsidian-dev-utils from v54 to v57 - Fix pre-existing lint issues in path-ino-map.ts (activeWindow, Error rejection) BREAKING CHANGE: Plugin now extends non-generic PluginBase and uses component-based architecture. Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+- chore: update libs
+- chore: update template
+- chore: update libs Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+- chore: add @total-typescript/ts-reset, better-typescript-lib, and libReplacement Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+- chore: unify rules
+- chore: add English language requirement to issue templates Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
 ## 3.0.40
 
 - chore: update template
