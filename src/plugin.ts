@@ -2,10 +2,6 @@ import type { FSWatcher } from 'chokidar';
 import type { EventName } from 'chokidar/handler.js';
 // eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
 import type { Stats } from 'node:fs';
-import type {
-  App,
-  PluginManifest
-} from 'obsidian';
 import type { RenameDeleteHandlerSettings } from 'obsidian-dev-utils/obsidian/components/rename-delete-handler-component';
 
 import { getDataAdapterEx } from '@obsidian-typings/obsidian-public-latest/implementations';
@@ -28,6 +24,7 @@ import { toPosixPath } from 'obsidian-dev-utils/path';
 import { PathInoMap } from './path-ino-map.ts';
 import { PluginSettingsComponent } from './plugin-settings-component.ts';
 import { PluginSettingsTab } from './plugin-settings-tab.ts';
+import { CallbackLayoutReadyComponent } from 'obsidian-dev-utils/obsidian/components/layout-ready-component';
 
 type OnFileChangeFn = FileSystemAdapter['onFileChange'];
 
@@ -49,7 +46,7 @@ export class Plugin extends PluginBase {
 
   private pathInoMap = new PathInoMap();
 
-  private readonly pluginSettingsComponent: PluginSettingsComponent;
+  private pluginSettingsComponent!: PluginSettingsComponent;
 
   private watcher: FSWatcher | null = null;
 
@@ -60,9 +57,7 @@ export class Plugin extends PluginBase {
     return this._fileSystemAdapter;
   }
 
-  public constructor(app: App, manifest: PluginManifest) {
-    super(app, manifest);
-
+  protected override onloadImpl(): void {
     this.pluginSettingsComponent = this.addChild(
       new PluginSettingsComponent({
         dataHandler: new PluginDataHandler(this),
@@ -88,16 +83,14 @@ export class Plugin extends PluginBase {
         })
       })
     );
-  }
-
-  public override async onload(): Promise<void> {
-    await super.onload();
 
     if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
       throw new Error('Vault adapter is not a FileSystemAdapter');
     }
 
     this._fileSystemAdapter = this.app.vault.adapter;
+
+    this.addChild(new CallbackLayoutReadyComponent(this.app, this.onLayoutReady.bind(this)));
   }
 
   protected async onLayoutReady(): Promise<void> {

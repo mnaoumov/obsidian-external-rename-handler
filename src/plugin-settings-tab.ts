@@ -12,10 +12,8 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
     super(params);
   }
 
-  public override display(): void {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- super.display() calls the PluginSettingsTabBase override; the inherited @deprecated tag on Obsidian's SettingTab.display propagates via TS getJsDocTags.
-    super.display();
-    this.containerEl.empty();
+  public override displayLegacy(): void {
+    super.displayLegacy();
 
     new SettingEx(this.containerEl)
       .setName('Should update links')

@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-empty-function, @typescript-eslint/no-useless-constructor, no-restricted-syntax -- Test mocks require empty constructors and flexible patterns. */
-import type { PluginSettingsTabBaseConstructorParams } from 'obsidian-dev-utils/obsidian/plugin/plugin-settings-tab';
+import type { Plugin } from 'obsidian';
+import type { PluginSettingsComponentBase } from 'obsidian-dev-utils/obsidian/components/plugin-settings-component';
 
-import { castTo } from 'obsidian-dev-utils/object-utils';
+import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import {
   describe,
   expect,
@@ -9,66 +9,59 @@ import {
   vi
 } from 'vitest';
 
-import type { PluginSettings } from './plugin-settings.ts';
-
 import { PluginSettingsTab } from './plugin-settings-tab.ts';
+import { PluginSettings } from './plugin-settings.ts';
 
-vi.mock('obsidian-dev-utils/obsidian/plugin/plugin-settings-tab', () => ({
-  PluginSettingsTabBase: class {
-    public containerEl = activeDocument.createElement('div');
+const EXPECTED_BOUND_PROPERTIES = [
+  'shouldUpdateLinks',
+  'pollingIntervalInMilliseconds',
+  'deletionRenameDetectionTimeoutInMilliseconds'
+];
 
-    public constructor(_params: unknown) {}
-
-    public bind(component: unknown, _property: string): unknown {
-      return component;
+function createTab(): PluginSettingsTab {
+  const pluginSettingsComponent = strictProxy<PluginSettingsComponentBase<PluginSettings>>({
+    defaultSettings: new PluginSettings(),
+    on: vi.fn().mockReturnValue({ id: 'ref' }),
+    settings: new PluginSettings(),
+    settingsState: {
+      effectiveValues: new PluginSettings(),
+      inputValues: new PluginSettings(),
+      validationMessages: {
+        deletionRenameDetectionTimeoutInMilliseconds: '',
+        pollingIntervalInMilliseconds: '',
+        shouldUpdateLinks: ''
+      }
     }
+  });
 
-    public display(): void {}
-  }
-}));
-
-vi.mock('obsidian-dev-utils/obsidian/setting-ex', () => ({
-  SettingEx: class {
-    public constructor(el: HTMLElement) {
-      el.appendChild(activeDocument.createElement('div'));
+  const plugin = strictProxy<Plugin>({
+    app: {
+      workspace: {
+        on: vi.fn().mockReturnValue({ id: 'test' })
+      }
     }
+  });
 
-    public addNumber(cb: (component: { setMin(min: number): unknown }) => void): unknown {
-      const component = { setMin: vi.fn(() => component) };
-      cb(component);
-      return this;
-    }
-
-    public addToggle(cb: (toggle: object) => void): unknown {
-      cb({});
-      return this;
-    }
-
-    public setDesc(_desc: unknown): unknown {
-      return this;
-    }
-
-    public setName(_name: string): unknown {
-      return this;
-    }
-  }
-}));
+  const tab = new PluginSettingsTab({ plugin, pluginSettingsComponent });
+  tab.containerEl = activeDocument.createElement('div');
+  return tab;
+}
 
 describe('PluginSettingsTab', () => {
-  function createSettingsTab(): PluginSettingsTab {
-    return new PluginSettingsTab(castTo<PluginSettingsTabBaseConstructorParams<PluginSettings>>({}));
-  }
+  it('should create the tab instance', () => {
+    const tab = createTab();
 
-  it('should create an instance', () => {
-    const tab = createSettingsTab();
     expect(tab).toBeInstanceOf(PluginSettingsTab);
   });
 
-  it('should render settings in display()', () => {
-    const tab = createSettingsTab();
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Testing display() which is deprecated but still the mechanism used by PluginSettingsTabBase.
-    tab.display();
-    expect(tab.containerEl.children.length).toBeGreaterThan(0);
+  it('should render every setting in displayLegacy() and bind it to the correct property', () => {
+    const tab = createTab();
+    // The number settings chain `.setMin(0)` off the result of `bind()`, so the spy must return the component.
+    const bindSpy = vi.spyOn(tab, 'bind').mockImplementation((component) => component);
+
+    tab.displayLegacy();
+
+    expect(bindSpy.mock.calls.map((call) => call[1])).toEqual(EXPECTED_BOUND_PROPERTIES);
+    expect(tab.containerEl.children.length).toBe(EXPECTED_BOUND_PROPERTIES.length);
   });
 });
-/* eslint-enable @typescript-eslint/no-empty-function, @typescript-eslint/no-useless-constructor, no-restricted-syntax -- End of test file. */
