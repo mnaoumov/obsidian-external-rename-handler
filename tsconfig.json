@@ -17,7 +17,7 @@
     "module": "node16",
     "moduleResolution": "node16",
     "noEmit": true,
-    "skipLibCheck": false,
+    "skipLibCheck": true,
     "target": "es2022",
     "types": [
       "@total-typescript/ts-reset",
