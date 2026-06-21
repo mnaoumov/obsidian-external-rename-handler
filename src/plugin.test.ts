@@ -13,6 +13,7 @@ import {
   Component,
   FileSystemAdapter
 } from 'obsidian';
+import { waitForAllAsyncOperations } from 'obsidian-dev-utils/async';
 import {
   noop,
   noopAsync
@@ -266,13 +267,12 @@ async function createReadyPlugin(): Promise<Plugin> {
 }
 
 async function flush(): Promise<void> {
-  // Let timer callbacks (the CallbackLayoutReadyComponent's setTimeout(0)) and the following microtasks settle under real timers.
-  for (let i = 0; i < 5; i++) {
-    await new Promise<void>((resolve) => {
-      window.setTimeout(resolve, 0);
-    });
-    await noopAsync();
-  }
+  // Tick one real macrotask so any pending window.setTimeout(0) (e.g. the CallbackLayoutReadyComponent guard) fires and registers its invokeAsyncSafely operation with the async-operation tracker.
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
+  // Await every fire-and-forget operation scheduled via invokeAsyncSafely / convertAsyncToSync (onLayoutReady, watcher cleanup) instead of polling under arbitrary timeouts.
+  await waitForAllAsyncOperations();
 }
 
 function getRegisteredSettingsBuilder(): SettingsBuilder {
