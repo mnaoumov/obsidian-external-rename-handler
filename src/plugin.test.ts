@@ -19,7 +19,7 @@ import {
   noopAsync
 } from 'obsidian-dev-utils/function';
 import { castTo } from 'obsidian-dev-utils/object-utils';
-import { getObsidianDevUtilsState } from 'obsidian-dev-utils/obsidian/app';
+import { getObsidianDevUtilsState } from 'obsidian-dev-utils/obsidian-dev-utils-state';
 import { App } from 'obsidian-test-mocks/obsidian';
 import {
   afterEach,
@@ -241,7 +241,6 @@ function createApp(adapterOverride?: object): AppOriginal {
   });
   const newApp = appMock.asOriginalType__();
 
-  seedOnRawTarget(newApp, 'obsidianDevUtilsState', {});
   // The real RenameDeleteHandlerComponent monkey-patches FileManager.runAsyncLinkUpdate during onload.
   seedOnRawTarget(newApp.fileManager, 'runAsyncLinkUpdate', vi.fn((handler: (updates: unknown[]) => Promise<void>) => handler([])));
   // The source reads these off the vault; seed them on the strict-proxy raw target.
@@ -276,7 +275,7 @@ async function flush(): Promise<void> {
 }
 
 function getRegisteredSettingsBuilder(): SettingsBuilder {
-  const renameDeleteHandlersMap = getObsidianDevUtilsState(app, 'renameDeleteHandlersMap', new Map<string, SettingsBuilder>()).value;
+  const renameDeleteHandlersMap = getObsidianDevUtilsState('renameDeleteHandlersMap', new Map<string, SettingsBuilder>()).value;
   const builder = renameDeleteHandlersMap.get(PLUGIN_ID);
   if (!builder) {
     throw new Error('Rename/delete settings builder was not registered.');
