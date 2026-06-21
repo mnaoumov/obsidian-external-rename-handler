@@ -12,6 +12,7 @@ import { FileSystemAdapter } from 'obsidian';
 import { convertAsyncToSync } from 'obsidian-dev-utils/async';
 import { printError } from 'obsidian-dev-utils/error';
 import { registerAsyncEvent } from 'obsidian-dev-utils/obsidian/components/async-events-component';
+import { CallbackLayoutReadyComponent } from 'obsidian-dev-utils/obsidian/components/layout-ready-component';
 import { MonkeyAroundComponent } from 'obsidian-dev-utils/obsidian/components/monkey-around-component';
 import { PluginSettingsTabComponent } from 'obsidian-dev-utils/obsidian/components/plugin-settings-tab-component';
 import { RenameDeleteHandlerComponent } from 'obsidian-dev-utils/obsidian/components/rename-delete-handler-component';
@@ -24,7 +25,6 @@ import { toPosixPath } from 'obsidian-dev-utils/path';
 import { PathInoMap } from './path-ino-map.ts';
 import { PluginSettingsComponent } from './plugin-settings-component.ts';
 import { PluginSettingsTab } from './plugin-settings-tab.ts';
-import { CallbackLayoutReadyComponent } from 'obsidian-dev-utils/obsidian/components/layout-ready-component';
 
 type OnFileChangeFn = FileSystemAdapter['onFileChange'];
 
@@ -44,9 +44,9 @@ export class Plugin extends PluginBase {
 
   private _originalOnFileChange?: OnFileChangeFn;
 
-  private pathInoMap = new PathInoMap();
+  private _pluginSettingsComponent?: PluginSettingsComponent;
 
-  private pluginSettingsComponent!: PluginSettingsComponent;
+  private pathInoMap = new PathInoMap();
 
   private watcher: FSWatcher | null = null;
 
@@ -57,40 +57,11 @@ export class Plugin extends PluginBase {
     return this._fileSystemAdapter;
   }
 
-  protected override onloadImpl(): void {
-    this.pluginSettingsComponent = this.addChild(
-      new PluginSettingsComponent({
-        dataHandler: new PluginDataHandler(this),
-        pluginEventSource: new PluginEventSourceImpl(this)
-      })
-    );
-
-    const settingsTab = new PluginSettingsTab({
-      plugin: this,
-      pluginSettingsComponent: this.pluginSettingsComponent
-    });
-
-    this.addChild(new PluginSettingsTabComponent({ plugin: this, pluginSettingsTab: settingsTab }));
-
-    this.addChild(
-      new RenameDeleteHandlerComponent({
-        abortSignalComponent: this.abortSignalComponent,
-        app: this.app,
-        pluginId: this.manifest.id,
-        settingsBuilder: (): Partial<RenameDeleteHandlerSettings> => ({
-          shouldHandleRenames: this.pluginSettingsComponent.settings.shouldUpdateLinks,
-          shouldUpdateFileNameAliases: true
-        })
-      })
-    );
-
-    if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
-      throw new Error('Vault adapter is not a FileSystemAdapter');
+  private get pluginSettingsComponent(): PluginSettingsComponent {
+    if (!this._pluginSettingsComponent) {
+      throw new Error('pluginSettingsComponent is not initialized');
     }
-
-    this._fileSystemAdapter = this.app.vault.adapter;
-
-    this.addChild(new CallbackLayoutReadyComponent(this.app, this.onLayoutReady.bind(this)));
+    return this._pluginSettingsComponent;
   }
 
   protected async onLayoutReady(): Promise<void> {
@@ -156,6 +127,42 @@ export class Plugin extends PluginBase {
         await this.registerWatcher();
       })
     );
+  }
+
+  protected override onloadImpl(): void {
+    this._pluginSettingsComponent = this.addChild(
+      new PluginSettingsComponent({
+        dataHandler: new PluginDataHandler(this),
+        pluginEventSource: new PluginEventSourceImpl(this)
+      })
+    );
+
+    const settingsTab = new PluginSettingsTab({
+      plugin: this,
+      pluginSettingsComponent: this.pluginSettingsComponent
+    });
+
+    this.addChild(new PluginSettingsTabComponent({ plugin: this, pluginSettingsTab: settingsTab }));
+
+    this.addChild(
+      new RenameDeleteHandlerComponent({
+        abortSignalComponent: this.abortSignalComponent,
+        app: this.app,
+        pluginId: this.manifest.id,
+        settingsBuilder: (): Partial<RenameDeleteHandlerSettings> => ({
+          shouldHandleRenames: this.pluginSettingsComponent.settings.shouldUpdateLinks,
+          shouldUpdateFileNameAliases: true
+        })
+      })
+    );
+
+    if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
+      throw new Error('Vault adapter is not a FileSystemAdapter');
+    }
+
+    this._fileSystemAdapter = this.app.vault.adapter;
+
+    this.addChild(new CallbackLayoutReadyComponent(this.app, this.onLayoutReady.bind(this)));
   }
 
   private handleDeletion(ino: number, path: string): void {

@@ -1,54 +1,146 @@
-/* eslint-disable @typescript-eslint/no-empty-function, @typescript-eslint/no-extraneous-class, @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-useless-constructor, @typescript-eslint/require-await, no-restricted-syntax -- Test mocking patterns require flexible typing, type assertions, empty constructors, and mock calls. */
+// eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
+import type { Stats } from 'node:fs';
 import type {
-  App,
-  PluginManifest
+  App as AppOriginal,
+  FileSystemAdapter as FileSystemAdapterOriginal,
+  PluginManifest,
+  TAbstractFile
 } from 'obsidian';
 import type { Mock } from 'vitest';
 
 import { watch } from 'chokidar';
-import { FileSystemAdapter } from 'obsidian';
-import { printError } from 'obsidian-dev-utils/error';
-import { noopAsync } from 'obsidian-dev-utils/function';
+import {
+  Component,
+  FileSystemAdapter
+} from 'obsidian';
+import {
+  noop,
+  noopAsync
+} from 'obsidian-dev-utils/function';
+import { castTo } from 'obsidian-dev-utils/object-utils';
+import { getObsidianDevUtilsState } from 'obsidian-dev-utils/obsidian/app';
+import { App } from 'obsidian-test-mocks/obsidian';
 import {
   afterEach,
+  beforeEach,
   describe,
   expect,
   it,
   vi
 } from 'vitest';
 
-import { Plugin } from './plugin.ts';
+const PLUGIN_ID = 'external-rename-handler';
+const STRICT_PROXY_TARGET_SYMBOL = Symbol.for('strictProxyTarget');
+const ROOT_INO = 100;
+
+interface AppGlobal {
+  app: AppOriginal;
+}
+
+interface AsyncEventSource {
+  offref(eventRef: unknown): void;
+}
+
+interface EventRef {
+  asyncEventSource: AsyncEventSource;
+}
+
+interface FileEntry {
+  realpath: string;
+}
+
+interface LoadedFlagHolder {
+  loaded__: boolean;
+}
+
+interface PathInoMapStub {
+  clear: Mock<() => void>;
+  deletePath: Mock<(path: string) => void>;
+  getIno: Mock<(path: string) => number | undefined>;
+  getPath: Mock<(ino: number) => string | undefined>;
+  getPaths: Mock<() => string[]>;
+  init: Mock<(app: AppOriginal) => Promise<void>>;
+  set: Mock<(path: string, ino: number) => void>;
+}
+
+interface RenameDeleteSettingsProbe {
+  shouldHandleRenames: boolean;
+  shouldUpdateFileNameAliases: boolean;
+}
+
+type SettingsBuilder = () => RenameDeleteSettingsProbe;
+
+interface SettingTabsHolder {
+  settingTabs__: unknown[];
+}
+
+interface TestAdapter {
+  basePath: string;
+  files: Record<string, FileEntry>;
+  getFullRealPath(path: string): string;
+  getRealPath(path: string): string;
+  onFileChange(path: null | string): void;
+}
+
+interface WatcherMock {
+  close(): Promise<void>;
+  on(event: string, handler: (...args: unknown[]) => void): WatcherMock;
+}
+
+type WatcherOnCalls = [string, (...args: unknown[]) => void][];
+
+interface WatcherOnMock {
+  mock: WatcherOnMockData;
+}
+
+interface WatcherOnMockData {
+  calls: WatcherOnCalls;
+}
+
+interface WatchOptions {
+  ignored(path: string): boolean;
+}
 
 // --- Hoisted shared state ---
 
-const { mockStat, pathInoMapMocks, registeredCleanups } = vi.hoisted(() => ({
-  mockStat: vi.fn(async () => ({ ino: 100 })),
-  pathInoMapMocks: {
+const hoisted = vi.hoisted(() => {
+  const pathInoMapStub: PathInoMapStub = {
     clear: vi.fn(),
     deletePath: vi.fn(),
-    getIno: vi.fn(),
-    getPath: vi.fn(),
-    getPaths: vi.fn(() => [] as string[]),
-    init: vi.fn(async () => undefined),
+    getIno: vi.fn((): number | undefined => undefined),
+    getPath: vi.fn((): string | undefined => undefined),
+    getPaths: vi.fn((): string[] => []),
+    init: vi.fn((): Promise<void> => noopAsync()),
     set: vi.fn()
-  },
-  registeredCleanups: [] as (() => unknown)[]
-}));
+  };
 
-// --- Mocks ---
+  return {
+    capturedLoadSettingsHandlers: [] as (() => Promise<void>)[],
+    capturedSaveSettingsHandlers: [] as (() => Promise<void>)[],
+    pathInoMapStub,
+    settings: {
+      deletionRenameDetectionTimeoutInMilliseconds: 500,
+      pollingIntervalInMilliseconds: 2000,
+      shouldUpdateLinks: true
+    },
+    stat: vi.fn((): Promise<Pick<Stats, 'ino'>> => Promise.resolve({ ino: ROOT_INO }))
+  };
+});
+
+// --- Allowed mocks: non dev-utils / non test-mocks modules ---
 
 vi.mock('chokidar', () => ({
   watch: vi.fn(() => {
-    const watcher: Record<string, unknown> = {
-      close: vi.fn(async () => undefined),
-      on: vi.fn(() => watcher)
+    const watcher: WatcherMock = {
+      close: vi.fn((): Promise<void> => noopAsync()),
+      on: vi.fn((): WatcherMock => watcher)
     };
     return watcher;
   })
 }));
 
 vi.mock('node:fs/promises', () => {
-  const mock = { stat: mockStat };
+  const mock = { stat: hoisted.stat };
   return { ...mock, default: mock };
 });
 
@@ -56,590 +148,537 @@ vi.mock('@obsidian-typings/obsidian-public-latest/implementations', () => ({
   getDataAdapterEx: vi.fn(() => ({ basePath: '/test-vault' }))
 }));
 
-vi.mock('obsidian-dev-utils/async', () => ({
-  convertAsyncToSync: vi.fn((fn: () => Promise<void>) => fn)
-}));
-
-vi.mock('obsidian-dev-utils/error', () => ({
-  printError: vi.fn()
-}));
-
-vi.mock('obsidian-dev-utils/obsidian/components/async-events-component', () => ({
-  registerAsyncEvent: vi.fn()
-}));
-
-vi.mock('obsidian-dev-utils/obsidian/components/monkey-around-component', () => ({
-  MonkeyAroundComponent: class {
-    public registerPatch(obj: Record<string, unknown>, patches: Record<string, (next: unknown) => unknown>): void {
-      for (const [key, patchFn] of Object.entries(patches)) {
-        const original = obj[key];
-        const bound = typeof original === 'function' ? original.bind(obj) : original;
-        obj[key] = patchFn(bound);
-      }
-    }
-  }
-}));
-
-vi.mock('obsidian-dev-utils/obsidian/components/plugin-settings-tab-component', () => ({
-  PluginSettingsTabComponent: class {
-    public constructor(_params: unknown) {}
-  }
-}));
-
-interface RenameDeleteHandlerParams {
-  settingsBuilder(): object;
-}
-
-const capturedRenameDeleteHandlerSettingsBuilders: (() => object)[] = [];
-
-vi.mock('obsidian-dev-utils/obsidian/components/rename-delete-handler-component', () => ({
-  RenameDeleteHandlerComponent: class {
-    public constructor(params: RenameDeleteHandlerParams) {
-      capturedRenameDeleteHandlerSettingsBuilders.push(params.settingsBuilder);
-    }
-  }
-}));
-
-vi.mock('obsidian-dev-utils/obsidian/data-handler', () => ({
-  PluginDataHandler: class {
-    public constructor(_plugin: unknown) {}
-  }
-}));
-
-interface LoopParams {
-  buildNoticeMessage?(item: unknown, iterationStr: string): string;
-  readonly items: unknown[];
-  processItem(item: unknown): Promise<void> | void;
-}
-
-vi.mock('obsidian-dev-utils/obsidian/loop', () => ({
-  loop: vi.fn(async (params: LoopParams) => {
-    for (const item of params.items) {
-      params.buildNoticeMessage?.(item, '1/1');
-      await params.processItem(item);
-    }
-  })
-}));
-
-vi.mock('obsidian-dev-utils/obsidian/plugin/plugin', () => ({
-  PluginBase: class {
-    public abortSignalComponent = { abortSignal: new AbortController().signal };
-    public app: App;
-    public manifest: PluginManifest;
-
-    public constructor(app: App, manifest: PluginManifest) {
-      this.app = app;
-      this.manifest = manifest;
-    }
-
-    public addChild<T>(child: T): T {
-      return child;
-    }
-
-    public async onload(): Promise<void> {}
-
-    public register(fn: () => unknown): void {
-      registeredCleanups.push(fn);
-    }
-  }
-}));
-
-vi.mock('obsidian-dev-utils/obsidian/plugin/plugin-event-source', () => ({
-  PluginEventSourceImpl: class {
-    public constructor(_plugin: unknown) {}
-  }
-}));
+// --- Allowed mocks: the plugin's OWN sibling modules ---
 
 vi.mock('./path-ino-map.ts', () => ({
   PathInoMap: class {
-    public clear = pathInoMapMocks.clear;
-    public deletePath = pathInoMapMocks.deletePath;
-    public getIno = pathInoMapMocks.getIno;
-    public getPath = pathInoMapMocks.getPath;
-    public getPaths = pathInoMapMocks.getPaths;
-    public init = pathInoMapMocks.init;
-    public set = pathInoMapMocks.set;
+    public clear = hoisted.pathInoMapStub.clear;
+    public deletePath = hoisted.pathInoMapStub.deletePath;
+    public getIno = hoisted.pathInoMapStub.getIno;
+    public getPath = hoisted.pathInoMapStub.getPath;
+    public getPaths = hoisted.pathInoMapStub.getPaths;
+    public init = hoisted.pathInoMapStub.init;
+    public set = hoisted.pathInoMapStub.set;
   }
 }));
 
 vi.mock('./plugin-settings-component.ts', () => ({
-  PluginSettingsComponent: class {
-    public on = vi.fn((_event: string, handler: () => Promise<void>) => {
-      handler().catch(() => undefined);
-      return { id: 'mock-event' };
+  // The real addChild eagerly LOADS this child, so it must extend the real (test-mocks) Component.
+  PluginSettingsComponent: class extends Component {
+    public on = vi.fn((event: string, handler: () => Promise<void>): EventRef => {
+      if (event === 'loadSettings') {
+        hoisted.capturedLoadSettingsHandlers.push(handler);
+      } else {
+        hoisted.capturedSaveSettingsHandlers.push(handler);
+      }
+      // The real registerAsyncEvent calls eventRef.asyncEventSource.offref(eventRef) on unload.
+      return { asyncEventSource: { offref: vi.fn() } };
     });
 
-    public settings = {
-      deletionRenameDetectionTimeoutInMilliseconds: 500,
-      pollingIntervalInMilliseconds: 2000,
-      shouldUpdateLinks: true
-    };
+    public settings = hoisted.settings;
+
+    public constructor(_params: unknown) {
+      super();
+    }
   }
 }));
 
 vi.mock('./plugin-settings-tab.ts', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Stub only passed to the real PluginSettingsTabComponent.
   PluginSettingsTab: class {
-    public constructor(_params: unknown) {}
+    public constructor(_params: unknown) {
+      noop();
+    }
   }
 }));
 
-// --- Test subclass ---
+// eslint-disable-next-line import-x/first, import-x/imports-first -- vi.mock must precede the import of the module under test.
+import { Plugin } from './plugin.ts';
 
-interface MockAdapter {
-  basePath: string;
-  files: Record<string, { realpath: string }>;
-  getFullRealPath: Mock;
-  getRealPath: Mock;
-  onFileChange: Mock;
+const manifest = castTo<PluginManifest>({
+  author: 'test',
+  description: 'test',
+  id: PLUGIN_ID,
+  minAppVersion: '1.0.0',
+  name: 'External Rename Handler',
+  version: '1.0.0'
+});
+
+interface PluginPrivate {
+  onLayoutReady(): Promise<void>;
+  originalOnFileChange(path: null | string): void;
+  pluginSettingsComponent: unknown;
 }
 
-// --- Helpers ---
+let app: AppOriginal;
+let adapter: TestAdapter;
+let originalOnFileChangeSpy: Mock<(path: null | string) => void>;
+let capturedLayoutReadyCallback: (() => void) | undefined;
+let onChangeMock: ReturnType<typeof vi.fn>;
+let loadedFiles: TAbstractFile[];
 
-interface MockApp {
-  appId: string;
-  vault: {
-    adapter: MockAdapter | object;
-    getAllLoadedFiles: Mock;
-    onChange: Mock;
-  };
-}
-
-interface MockWatcher {
-  close: Mock;
-  on: Mock;
-}
-
-interface PluginSettingsAccess {
-  pluginSettingsComponent: {
-    settings: {
-      deletionRenameDetectionTimeoutInMilliseconds: number;
-    };
-  };
-}
-
-interface WatchOptions {
-  ignored(path: string): boolean;
-}
-
-class TestablePlugin extends Plugin {
-  public async callOnLayoutReady(): Promise<void> {
-    return this.onLayoutReady();
-  }
-
-  public getOriginalOnFileChange(): (path: string) => void {
-    return this.originalOnFileChange;
-  }
-}
-
-function createMockAdapter(): MockAdapter {
-  const adapter: MockAdapter = {
+function createAdapter(): TestAdapter {
+  originalOnFileChangeSpy = vi.fn();
+  const newAdapter: TestAdapter = {
     basePath: '/test-vault',
     files: {},
-    getFullRealPath: vi.fn((path: string) => `/test-vault/${path}`),
-    getRealPath: vi.fn((path: string) => `/test-vault/${path}`),
-    onFileChange: vi.fn()
+    getFullRealPath: (path: string): string => `/test-vault/${path}`,
+    getRealPath: (path: string): string => `/test-vault/${path}`,
+    onFileChange: originalOnFileChangeSpy
   };
-  Object.setPrototypeOf(adapter, FileSystemAdapter.prototype);
-  return adapter;
+  // The source checks `app.vault.adapter instanceof FileSystemAdapter` (the real obsidian API class, aliased to test-mocks).
+  Object.setPrototypeOf(newAdapter, FileSystemAdapter.prototype);
+  return newAdapter;
 }
 
-function createPlugin(adapterOverride?: object): { adapter: MockAdapter; app: MockApp; plugin: TestablePlugin } {
-  const adapter = createMockAdapter();
-  const app: MockApp = {
-    appId: 'test-app',
-    vault: {
-      adapter: adapterOverride ?? adapter,
-      getAllLoadedFiles: vi.fn(() => []),
-      onChange: vi.fn()
-    }
-  };
-  const manifest = { id: 'test-plugin', name: 'Test', version: '1.0.0' } as PluginManifest;
-  const plugin = new TestablePlugin(app as unknown as App, manifest);
-  return { adapter, app, plugin };
+function createApp(adapterOverride?: object): AppOriginal {
+  const newAdapter = createAdapter();
+  adapter = newAdapter;
+  const appMock = App.createConfigured__({ adapter: castTo<FileSystemAdapterOriginal>(adapterOverride ?? newAdapter) });
+  appMock.workspace.onLayoutReady = vi.fn((cb: () => void) => {
+    capturedLayoutReadyCallback = cb;
+  });
+  const newApp = appMock.asOriginalType__();
+
+  seedOnRawTarget(newApp, 'obsidianDevUtilsState', {});
+  // The real RenameDeleteHandlerComponent monkey-patches FileManager.runAsyncLinkUpdate during onload.
+  seedOnRawTarget(newApp.fileManager, 'runAsyncLinkUpdate', vi.fn((handler: (updates: unknown[]) => Promise<void>) => handler([])));
+  // The source reads these off the vault; seed them on the strict-proxy raw target.
+  onChangeMock = vi.fn();
+  seedOnRawTarget(newApp.vault, 'onChange', onChangeMock);
+  seedOnRawTarget(newApp.vault, 'getAllLoadedFiles', vi.fn(() => loadedFiles));
+
+  castTo<AppGlobal>(window).app = newApp;
+  return newApp;
 }
 
-async function flushMicrotasks(): Promise<void> {
-  await noopAsync();
+async function createLoadedPlugin(): Promise<Plugin> {
+  const plugin = new Plugin(app, manifest);
+  // PluginBase.onload is async; the sync mock Component.load() would not await it, so the real async load path is driven directly.
+  await plugin.onload();
+  return plugin;
 }
 
-function getLastWatcher(): MockWatcher | undefined {
-  const mockWatch = vi.mocked(watch);
-  const lastResult = mockWatch.mock.results[mockWatch.mock.results.length - 1];
-  return lastResult?.value as MockWatcher | undefined;
+async function createReadyPlugin(): Promise<Plugin> {
+  const plugin = await createLoadedPlugin();
+  await triggerLayoutReady();
+  return plugin;
 }
 
-function getWatcherHandler(event: string): ((...args: unknown[]) => void) | undefined {
-  const mockWatch = vi.mocked(watch);
-  for (let i = mockWatch.mock.results.length - 1; i >= 0; i--) {
-    const watcher = mockWatch.mock.results[i]?.value as MockWatcher | undefined;
-    if (!watcher) {
+async function flush(): Promise<void> {
+  // Let timer callbacks (the CallbackLayoutReadyComponent's setTimeout(0)) and the following microtasks settle under real timers.
+  for (let i = 0; i < 5; i++) {
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 0);
+    });
+    await noopAsync();
+  }
+}
+
+function getRegisteredSettingsBuilder(): SettingsBuilder {
+  const renameDeleteHandlersMap = getObsidianDevUtilsState(app, 'renameDeleteHandlersMap', new Map<string, SettingsBuilder>()).value;
+  const builder = renameDeleteHandlersMap.get(PLUGIN_ID);
+  if (!builder) {
+    throw new Error('Rename/delete settings builder was not registered.');
+  }
+  return builder;
+}
+
+function getWatcher(index = -1): WatcherMock {
+  const results = vi.mocked(watch).mock.results;
+  const result = results.at(index);
+  if (result?.type !== 'return') {
+    throw new Error('Watcher was not created.');
+  }
+  return castTo<WatcherMock>(result.value);
+}
+
+function getWatcherHandler(event: string): (...args: unknown[]) => void {
+  const results = vi.mocked(watch).mock.results;
+  for (let i = results.length - 1; i >= 0; i--) {
+    const result = results[i];
+    if (result?.type !== 'return') {
       continue;
     }
-    const call = (watcher.on.mock.calls as unknown[][]).find((c) => c[0] === event);
+    const watcher = castTo<WatcherMock>(result.value);
+    const onMock = castTo<WatcherOnMock>(watcher.on);
+    const call = onMock.mock.calls.find((c) => c[0] === event);
     if (call) {
-      return call[1] as (...args: unknown[]) => void;
+      return call[1];
     }
   }
-  return undefined;
+  throw new Error(`Watcher handler for '${event}' was not registered.`);
+}
+
+function getWatchOptions(): WatchOptions {
+  const calls = vi.mocked(watch).mock.calls;
+  const lastCall = calls.at(-1);
+  if (!lastCall) {
+    throw new Error('watch was not called.');
+  }
+  return castTo<WatchOptions>(lastCall[1]);
+}
+
+function seedOnRawTarget(strictProxiedObject: object, key: string, value: unknown): void {
+  const rawTarget = castTo<object | undefined>(Reflect.get(strictProxiedObject, STRICT_PROXY_TARGET_SYMBOL)) ?? strictProxiedObject;
+  Reflect.set(rawTarget, key, value);
+}
+
+async function triggerLayoutReady(): Promise<void> {
+  if (!capturedLayoutReadyCallback) {
+    throw new Error('Layout-ready callback was not captured.');
+  }
+  // CallbackLayoutReadyComponent.onload registers this callback; it schedules a setTimeout(0) that invokes onLayoutReady.
+  capturedLayoutReadyCallback();
+  await flush();
 }
 
 // --- Tests ---
 
 describe('Plugin', () => {
-  afterEach(() => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    vi.useRealTimers();
-    mockStat.mockImplementation(async () => ({ ino: 100 }));
-    pathInoMapMocks.getPaths.mockImplementation(() => []);
-    pathInoMapMocks.getIno.mockReturnValue(undefined);
-    pathInoMapMocks.getPath.mockReturnValue(undefined);
-    registeredCleanups.length = 0;
-    capturedRenameDeleteHandlerSettingsBuilders.length = 0;
+    hoisted.capturedLoadSettingsHandlers.length = 0;
+    hoisted.capturedSaveSettingsHandlers.length = 0;
+    hoisted.pathInoMapStub.getIno.mockReturnValue(undefined);
+    hoisted.pathInoMapStub.getPath.mockReturnValue(undefined);
+    hoisted.pathInoMapStub.getPaths.mockReturnValue([]);
+    hoisted.pathInoMapStub.init.mockResolvedValue(undefined);
+    hoisted.stat.mockResolvedValue({ ino: ROOT_INO });
+    hoisted.settings.deletionRenameDetectionTimeoutInMilliseconds = 500;
+    hoisted.settings.pollingIntervalInMilliseconds = 2000;
+    hoisted.settings.shouldUpdateLinks = true;
+    capturedLayoutReadyCallback = undefined;
+    loadedFiles = [];
+    app = createApp();
   });
 
-  describe('constructor', () => {
-    it('should create plugin instance', () => {
-      const { plugin } = createPlugin();
-      expect(plugin).toBeInstanceOf(TestablePlugin);
-    });
-
-    it('should pass settingsBuilder to RenameDeleteHandlerComponent that reflects shouldUpdateLinks', () => {
-      capturedRenameDeleteHandlerSettingsBuilders.length = 0;
-      const { plugin } = createPlugin();
-      expect(plugin).toBeDefined();
-      const builder = capturedRenameDeleteHandlerSettingsBuilders[0];
-      expect(builder).toBeDefined();
-      const settings = builder!();
-      expect(settings).toMatchObject({ shouldHandleRenames: true, shouldUpdateFileNameAliases: true });
-    });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('abortSignal', () => {
-    it('should return the abort signal', () => {
-      const { plugin } = createPlugin();
+    it('should expose the abort signal of the abort signal component', async () => {
+      const plugin = await createLoadedPlugin();
       expect(plugin.abortSignal).toBeInstanceOf(AbortSignal);
     });
   });
 
   describe('originalOnFileChange', () => {
     it('should throw when not initialized', () => {
-      const { plugin } = createPlugin();
-      expect(() => plugin.getOriginalOnFileChange()).toThrow('originalOnFileChange is not initialized');
+      const plugin = new Plugin(app, manifest);
+      function readOriginalOnFileChange(): void {
+        castTo<PluginPrivate>(plugin).originalOnFileChange('test.md');
+      }
+      expect(readOriginalOnFileChange).toThrow('originalOnFileChange is not initialized');
     });
   });
 
-  describe('onload', () => {
-    it('should set up adapter without throwing', async () => {
-      const { plugin } = createPlugin();
-      await expect(plugin.onload()).resolves.toBeUndefined();
+  describe('pluginSettingsComponent', () => {
+    it('should throw when not initialized', () => {
+      const plugin = new Plugin(app, manifest);
+      function readPluginSettingsComponent(): unknown {
+        return castTo<PluginPrivate>(plugin).pluginSettingsComponent;
+      }
+      expect(readPluginSettingsComponent).toThrow('pluginSettingsComponent is not initialized');
+    });
+  });
+
+  describe('onloadImpl', () => {
+    it('should load the plugin without throwing', async () => {
+      const plugin = await createLoadedPlugin();
+      expect(plugin).toBeInstanceOf(Plugin);
     });
 
-    it('should throw when adapter is not FileSystemAdapter', async () => {
-      const { plugin } = createPlugin({});
+    it('should register the settings tab', async () => {
+      const plugin = await createLoadedPlugin();
+      expect(castTo<SettingTabsHolder>(plugin).settingTabs__).toHaveLength(1);
+    });
+
+    it('should throw when the vault adapter is not a FileSystemAdapter', async () => {
+      app = createApp({});
+      const plugin = new Plugin(app, manifest);
       await expect(plugin.onload()).rejects.toThrow('Vault adapter is not a FileSystemAdapter');
+    });
+
+    it('should register a rename/delete settings builder', async () => {
+      await createLoadedPlugin();
+      const settings = getRegisteredSettingsBuilder()();
+      expect(settings).toMatchObject({
+        shouldHandleRenames: true,
+        shouldUpdateFileNameAliases: true
+      });
+    });
+
+    it('should reflect shouldUpdateLinks in the settings builder', async () => {
+      await createLoadedPlugin();
+      hoisted.settings.shouldUpdateLinks = false;
+      const settings = getRegisteredSettingsBuilder()();
+      expect(settings.shouldHandleRenames).toBe(false);
     });
   });
 
   describe('onLayoutReady', () => {
-    it('should initialize PathInoMap', async () => {
-      const { plugin } = createPlugin();
-      await plugin.onload();
-      await plugin.callOnLayoutReady();
-      expect(pathInoMapMocks.init).toHaveBeenCalled();
+    it('should initialize the path/ino map', async () => {
+      await createReadyPlugin();
+      expect(hoisted.pathInoMapStub.init).toHaveBeenCalled();
     });
 
-    it('should clear map when root ino does not match', async () => {
-      const { plugin } = createPlugin();
-      await plugin.onload();
-      pathInoMapMocks.getIno.mockReturnValue(999);
-      mockStat.mockResolvedValue({ ino: 100 });
-      await plugin.callOnLayoutReady();
-      expect(pathInoMapMocks.clear).toHaveBeenCalled();
+    it('should clear the map when the root ino does not match', async () => {
+      hoisted.pathInoMapStub.getIno.mockReturnValue(999);
+      hoisted.stat.mockResolvedValue({ ino: ROOT_INO });
+      await createReadyPlugin();
+      expect(hoisted.pathInoMapStub.clear).toHaveBeenCalled();
     });
 
-    it('should not clear map when root ino matches', async () => {
-      const { plugin } = createPlugin();
-      await plugin.onload();
-      pathInoMapMocks.getIno.mockReturnValue(100);
-      mockStat.mockResolvedValue({ ino: 100 });
-      await plugin.callOnLayoutReady();
-      expect(pathInoMapMocks.clear).not.toHaveBeenCalled();
+    it('should not clear the map when the root ino matches', async () => {
+      hoisted.pathInoMapStub.getIno.mockReturnValue(ROOT_INO);
+      hoisted.stat.mockResolvedValue({ ino: ROOT_INO });
+      await createReadyPlugin();
+      expect(hoisted.pathInoMapStub.clear).not.toHaveBeenCalled();
     });
 
-    it('should skip cached paths during file loop', async () => {
-      const { app, plugin } = createPlugin();
-      await plugin.onload();
-      app.vault.getAllLoadedFiles.mockReturnValue([{ path: '/cached.md' }, { path: '/new.md' }]);
-      pathInoMapMocks.getPaths.mockReturnValue(['/cached.md']);
-      mockStat.mockResolvedValue({ ino: 200 });
-      await plugin.callOnLayoutReady();
-      expect(pathInoMapMocks.set).toHaveBeenCalledWith('/new.md', 200);
+    it('should skip cached paths while indexing loaded files', async () => {
+      loadedFiles = [castTo<TAbstractFile>({ path: '/cached.md' }), castTo<TAbstractFile>({ path: '/new.md' })];
+      hoisted.pathInoMapStub.getPaths.mockReturnValue(['/cached.md']);
+      hoisted.stat.mockResolvedValue({ ino: 200 });
+      await createReadyPlugin();
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith('/new.md', 200);
+      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalledWith('/cached.md', 200);
     });
 
-    it('should skip dot files during file loop', async () => {
-      const { app, plugin } = createPlugin();
-      await plugin.onload();
-      app.vault.getAllLoadedFiles.mockReturnValue([{ path: '.dot-folder/config' }]);
-      mockStat.mockResolvedValue({ ino: 200 });
-      await plugin.callOnLayoutReady();
-      expect(pathInoMapMocks.set).not.toHaveBeenCalled();
+    it('should skip dot files while indexing loaded files', async () => {
+      loadedFiles = [castTo<TAbstractFile>({ path: '.dot-folder/config' })];
+      hoisted.stat.mockResolvedValue({ ino: 200 });
+      await createReadyPlugin();
+      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalled();
     });
 
     it('should clean up stale cached paths', async () => {
-      const { plugin } = createPlugin();
-      await plugin.onload();
-      pathInoMapMocks.getPaths.mockReturnValue(['/stale.md']);
-      mockStat.mockResolvedValue({ ino: 100 });
-      await plugin.callOnLayoutReady();
-      expect(pathInoMapMocks.deletePath).toHaveBeenCalledWith('/stale.md');
+      hoisted.pathInoMapStub.getPaths.mockReturnValue(['/stale.md']);
+      hoisted.stat.mockResolvedValue({ ino: ROOT_INO });
+      await createReadyPlugin();
+      expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('/stale.md');
     });
 
-    it('should throw when fileSystemAdapter is not initialized', async () => {
-      const { plugin } = createPlugin();
-      await expect(plugin.callOnLayoutReady()).rejects.toThrow('fileSystemAdapter is not initialized');
-    });
-
-    it('should set up monkey patch for onFileChange', async () => {
-      const { adapter, plugin } = createPlugin();
-      await plugin.onload();
-      await plugin.callOnLayoutReady();
+    it('should set up the monkey patch for onFileChange', async () => {
+      await createReadyPlugin();
+      // The real MonkeyAroundComponent replaced the original onFileChange spy with the plugin's wrapper.
+      expect(adapter.onFileChange).not.toBe(originalOnFileChangeSpy);
       expect(typeof adapter.onFileChange).toBe('function');
     });
 
-    it('should call registerWatcher via event handlers', async () => {
-      const { plugin } = createPlugin();
-      await plugin.onload();
-      await plugin.callOnLayoutReady();
-      await flushMicrotasks();
+    it('should throw when the file system adapter is not initialized', async () => {
+      // Driving onLayoutReady before onload exercises the fileSystemAdapter getter guard.
+      const plugin = new Plugin(app, manifest);
+      await expect(castTo<PluginPrivate>(plugin).onLayoutReady()).rejects.toThrow('fileSystemAdapter is not initialized');
+    });
+
+    it('should register a watcher via the settings event handlers', async () => {
+      await createReadyPlugin();
+      expect(hoisted.capturedLoadSettingsHandlers).toHaveLength(1);
+      expect(hoisted.capturedSaveSettingsHandlers).toHaveLength(1);
+      await hoisted.capturedLoadSettingsHandlers[0]?.();
       expect(watch).toHaveBeenCalled();
     });
   });
 
-  describe('handleWatcherEvent (via watcher)', () => {
-    let adapter: MockAdapter;
-    let plugin: TestablePlugin;
-    let app: MockApp;
-
+  describe('handleWatcherEvent', () => {
     async function setup(): Promise<void> {
-      const result = createPlugin();
-      adapter = result.adapter;
-      plugin = result.plugin;
-      app = result.app;
-      await plugin.onload();
-      await plugin.callOnLayoutReady();
-      await flushMicrotasks();
+      await createReadyPlugin();
+      await hoisted.capturedLoadSettingsHandlers[0]?.();
     }
 
-    function getHandler(): (...args: unknown[]) => void {
-      const handler = getWatcherHandler('all');
-      if (!handler) {
-        throw new Error('Handler not found');
-      }
-      return handler;
-    }
-
-    it('should forward dot files to originalOnFileChange', async () => {
+    it('should forward dot files to the original onFileChange', async () => {
       await setup();
-      getHandler()('add', '.hidden/file.md', { ino: 1 });
+      getWatcherHandler('all')('add', '.hidden/file.md', { ino: 1 });
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('.hidden/file.md');
     });
 
-    it('should return early for add event on root path', async () => {
+    it('should return early for an add event on the root path', async () => {
       await setup();
-      getHandler()('add', '', { ino: 1 });
+      getWatcherHandler('all')('add', '', { ino: 1 });
+      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalled();
     });
 
-    it('should forward to originalOnFileChange when no stats on add', async () => {
+    it('should forward to the original onFileChange when an add event has no stats', async () => {
       await setup();
-      getHandler()('add', 'test.md', undefined);
+      getWatcherHandler('all')('add', 'test.md', undefined);
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('test.md');
     });
 
-    it('should skip when oldPath equals path on add', async () => {
+    it('should skip when the existing path equals the new path on add', async () => {
       await setup();
-      pathInoMapMocks.getPath.mockReturnValue('test.md');
-      getHandler()('add', 'test.md', { ino: 200 });
-      expect(pathInoMapMocks.set).not.toHaveBeenCalledWith('test.md', 200);
+      hoisted.pathInoMapStub.getPath.mockReturnValue('test.md');
+      getWatcherHandler('all')('add', 'test.md', { ino: 200 });
+      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalledWith('test.md', 200);
     });
 
-    it('should handle new file add', async () => {
+    it('should index a new file add', async () => {
       await setup();
-      pathInoMapMocks.getPath.mockReturnValue(undefined);
-      getHandler()('add', 'new.md', { ino: 300 });
-      expect(pathInoMapMocks.set).toHaveBeenCalledWith('new.md', 300);
+      getWatcherHandler('all')('add', 'new.md', { ino: 300 });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith('new.md', 300);
     });
 
-    it('should handle addDir event', async () => {
+    it('should index a new addDir', async () => {
       await setup();
-      pathInoMapMocks.getPath.mockReturnValue(undefined);
-      getHandler()('addDir', 'newfolder', { ino: 400 });
-      expect(pathInoMapMocks.set).toHaveBeenCalledWith('newfolder', 400);
+      getWatcherHandler('all')('addDir', 'newfolder', { ino: 400 });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith('newfolder', 400);
     });
 
-    it('should handle rename with file entry', async () => {
+    it('should handle a rename with a file entry', async () => {
       await setup();
-      pathInoMapMocks.getPath.mockReturnValue('old.md');
+      hoisted.pathInoMapStub.getPath.mockReturnValue('old.md');
       adapter.files['old.md'] = { realpath: '/test-vault/old.md' };
-      getHandler()('add', 'renamed.md', { ino: 500 });
-      expect(pathInoMapMocks.set).toHaveBeenCalledWith('renamed.md', 500);
-      expect(pathInoMapMocks.deletePath).toHaveBeenCalledWith('old.md');
+      getWatcherHandler('all')('add', 'renamed.md', { ino: 500 });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith('renamed.md', 500);
+      expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('old.md');
       expect(adapter.files['renamed.md']).toBeDefined();
       expect(adapter.files['old.md']).toBeUndefined();
-      expect(app.vault.onChange).toHaveBeenCalledWith('renamed', 'renamed.md', 'old.md');
+      expect(onChangeMock).toHaveBeenCalledWith('renamed', 'renamed.md', 'old.md');
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('old.md');
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('renamed.md');
     });
 
-    it('should handle rename without file entry', async () => {
+    it('should handle a rename without a file entry', async () => {
       await setup();
-      pathInoMapMocks.getPath.mockReturnValue('old.md');
-      getHandler()('add', 'renamed.md', { ino: 500 });
-      expect(pathInoMapMocks.deletePath).toHaveBeenCalledWith('old.md');
-      expect(app.vault.onChange).not.toHaveBeenCalled();
+      hoisted.pathInoMapStub.getPath.mockReturnValue('old.md');
+      getWatcherHandler('all')('add', 'renamed.md', { ino: 500 });
+      expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('old.md');
+      expect(onChangeMock).not.toHaveBeenCalled();
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('renamed.md');
     });
 
-    it('should handle unlink with timeout', async () => {
-      await setup();
-      vi.useFakeTimers();
-      pathInoMapMocks.getIno.mockReturnValue(600);
-      pathInoMapMocks.getPath.mockReturnValue('deleted.md');
-      getHandler()('unlink', 'deleted.md');
-      expect(pathInoMapMocks.deletePath).not.toHaveBeenCalledWith('deleted.md');
-      vi.advanceTimersByTime(500);
-      expect(pathInoMapMocks.deletePath).toHaveBeenCalledWith('deleted.md');
-    });
-
-    it('should handle unlinkDir', async () => {
+    it('should delete after the timeout on unlink', async () => {
       await setup();
       vi.useFakeTimers();
-      pathInoMapMocks.getIno.mockReturnValue(700);
-      pathInoMapMocks.getPath.mockReturnValue('deleted-dir');
-      getHandler()('unlinkDir', 'deleted-dir');
+      hoisted.pathInoMapStub.getIno.mockReturnValue(600);
+      hoisted.pathInoMapStub.getPath.mockReturnValue('deleted.md');
+      getWatcherHandler('all')('unlink', 'deleted.md');
+      expect(hoisted.pathInoMapStub.deletePath).not.toHaveBeenCalledWith('deleted.md');
       vi.advanceTimersByTime(500);
-      expect(pathInoMapMocks.deletePath).toHaveBeenCalledWith('deleted-dir');
+      expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('deleted.md');
     });
 
-    it('should handle unlink with zero timeout (immediate)', async () => {
-      await setup();
-      pathInoMapMocks.getIno.mockReturnValue(600);
-      pathInoMapMocks.getPath.mockReturnValue('deleted.md');
-      (plugin as unknown as PluginSettingsAccess).pluginSettingsComponent.settings.deletionRenameDetectionTimeoutInMilliseconds = 0;
-      getHandler()('unlink', 'deleted.md');
-      expect(pathInoMapMocks.deletePath).toHaveBeenCalledWith('deleted.md');
-    });
-
-    it('should skip unlink when ino is undefined', async () => {
-      await setup();
-      pathInoMapMocks.getIno.mockReturnValue(undefined);
-      getHandler()('unlink', 'unknown.md');
-      expect(pathInoMapMocks.deletePath).not.toHaveBeenCalled();
-    });
-
-    it('should skip deletion when path no longer matches ino', async () => {
+    it('should delete after the timeout on unlinkDir', async () => {
       await setup();
       vi.useFakeTimers();
-      pathInoMapMocks.getIno.mockReturnValue(600);
-      pathInoMapMocks.getPath.mockReturnValue('different.md');
-      getHandler()('unlink', 'deleted.md');
+      hoisted.pathInoMapStub.getIno.mockReturnValue(700);
+      hoisted.pathInoMapStub.getPath.mockReturnValue('deleted-dir');
+      getWatcherHandler('all')('unlinkDir', 'deleted-dir');
       vi.advanceTimersByTime(500);
-      expect(pathInoMapMocks.deletePath).not.toHaveBeenCalled();
+      expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('deleted-dir');
     });
 
-    it('should forward unknown events to originalOnFileChange', async () => {
+    it('should delete immediately on unlink when the timeout is zero', async () => {
       await setup();
-      getHandler()('change', 'changed.md');
+      hoisted.settings.deletionRenameDetectionTimeoutInMilliseconds = 0;
+      hoisted.pathInoMapStub.getIno.mockReturnValue(600);
+      hoisted.pathInoMapStub.getPath.mockReturnValue('deleted.md');
+      getWatcherHandler('all')('unlink', 'deleted.md');
+      expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('deleted.md');
+    });
+
+    it('should skip unlink when the ino is unknown', async () => {
+      await setup();
+      hoisted.pathInoMapStub.getIno.mockReturnValue(undefined);
+      getWatcherHandler('all')('unlink', 'unknown.md');
+      expect(hoisted.pathInoMapStub.deletePath).not.toHaveBeenCalled();
+    });
+
+    it('should skip deletion when the path no longer matches the ino', async () => {
+      await setup();
+      vi.useFakeTimers();
+      hoisted.pathInoMapStub.getIno.mockReturnValue(600);
+      hoisted.pathInoMapStub.getPath.mockReturnValue('different.md');
+      getWatcherHandler('all')('unlink', 'deleted.md');
+      vi.advanceTimersByTime(500);
+      expect(hoisted.pathInoMapStub.deletePath).not.toHaveBeenCalled();
+    });
+
+    it('should forward unknown events to the original onFileChange', async () => {
+      await setup();
+      getWatcherHandler('all')('change', 'changed.md');
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('changed.md');
     });
   });
 
   describe('handleWatcherError', () => {
-    it('should print error and forward to originalOnFileChange', async () => {
-      const { plugin } = createPlugin();
-      await plugin.onload();
-      await plugin.callOnLayoutReady();
-      await flushMicrotasks();
-
-      const errorHandler = getWatcherHandler('error');
-      expect(errorHandler).toBeDefined();
-      errorHandler!(new Error('test error'));
-      expect(printError).toHaveBeenCalled();
+    it('should print the error and forward to the original onFileChange', async () => {
+      await createReadyPlugin();
+      await hoisted.capturedLoadSettingsHandlers[0]?.();
+      getWatcherHandler('error')(new Error('test error'));
+      // The error handler runs the real printError (no throw) and forwards the root path to the original onFileChange.
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('/');
     });
   });
 
   describe('onFileChange (patched)', () => {
-    it('should ignore null path', async () => {
-      const { adapter, plugin } = createPlugin();
-      await plugin.onload();
-      await plugin.callOnLayoutReady();
-      const patchedOnFileChange = adapter.onFileChange as unknown as (path: null | string) => void;
-      patchedOnFileChange(null);
+    it('should ignore a null path', async () => {
+      await createReadyPlugin();
+      // The patched wrapper is now installed on the adapter; invoking it with null is a no-op (original not forwarded).
+      adapter.onFileChange(null);
+      expect(originalOnFileChangeSpy).not.toHaveBeenCalled();
     });
 
-    it('should forward dot file to originalOnFileChange', async () => {
-      const { adapter, plugin } = createPlugin();
-      await plugin.onload();
-      await plugin.callOnLayoutReady();
-      const patchedOnFileChange = adapter.onFileChange as unknown as (path: null | string) => void;
-      patchedOnFileChange('.dot-folder/test');
+    it('should forward a dot file to the original onFileChange', async () => {
+      await createReadyPlugin();
+      adapter.onFileChange('.dot-folder/test');
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('.dot-folder/test');
     });
 
     it('should not forward non-dot files', async () => {
-      const { adapter, plugin } = createPlugin();
-      await plugin.onload();
-      await plugin.callOnLayoutReady();
-      const patchedOnFileChange = adapter.onFileChange as unknown as (path: null | string) => void;
-      patchedOnFileChange('normal.md');
+      await createReadyPlugin();
+      adapter.onFileChange('normal.md');
+      expect(originalOnFileChangeSpy).not.toHaveBeenCalled();
     });
   });
 
   describe('registerWatcher', () => {
-    it('should create watcher with correct options', async () => {
-      const { plugin } = createPlugin();
-      await plugin.onload();
-      await plugin.callOnLayoutReady();
-      await flushMicrotasks();
+    it('should create the watcher with the expected options', async () => {
+      await createReadyPlugin();
+      await hoisted.capturedLoadSettingsHandlers[0]?.();
       expect(watch).toHaveBeenCalledWith(
         '.',
         expect.objectContaining({
           atomic: true,
+          cwd: '/test-vault',
           ignoreInitial: true,
-          persistent: false
+          persistent: false,
+          usePolling: true
         })
       );
     });
 
-    it('should register watcher cleanup function', async () => {
-      registeredCleanups.length = 0;
-      const { plugin } = createPlugin();
-      await plugin.onload();
-      await plugin.callOnLayoutReady();
-      await flushMicrotasks();
-
-      const cleanup = registeredCleanups[0];
-      expect(cleanup).toBeDefined();
-      await cleanup!();
+    it('should treat an empty path as the root (not ignored)', async () => {
+      await createReadyPlugin();
+      await hoisted.capturedLoadSettingsHandlers[0]?.();
+      expect(getWatchOptions().ignored('')).toBe(false);
     });
 
-    it('should handle isDotFile with empty path via ignored option', async () => {
-      const { plugin } = createPlugin();
-      await plugin.onload();
-      await plugin.callOnLayoutReady();
-      await flushMicrotasks();
-
-      const lastWatchCall = vi.mocked(watch).mock.calls[vi.mocked(watch).mock.calls.length - 1];
-      const options = lastWatchCall?.[1] as undefined | WatchOptions;
-      expect(options?.ignored('')).toBe(false);
+    it('should treat a dot path as ignored', async () => {
+      await createReadyPlugin();
+      await hoisted.capturedLoadSettingsHandlers[0]?.();
+      expect(getWatchOptions().ignored('.hidden-folder/config')).toBe(true);
     });
 
-    it('should close existing watcher on subsequent calls', async () => {
-      const { plugin } = createPlugin();
-      await plugin.onload();
-      await plugin.callOnLayoutReady();
-      await flushMicrotasks();
+    it('should register a cleanup that closes the watcher on the first call', async () => {
+      const plugin = await createReadyPlugin();
+      await hoisted.capturedLoadSettingsHandlers[0]?.();
+      const watcher = getWatcher();
+      // Onload() was driven directly (not load()), so flip the real loaded flag to let unload() flush registered cleanups.
+      castTo<LoadedFlagHolder>(plugin).loaded__ = true;
+      plugin.unload();
+      await flush();
+      expect(watcher.close).toHaveBeenCalled();
+    });
 
-      const firstWatcher = getLastWatcher();
-      expect(firstWatcher).toBeDefined();
-
-      await plugin.callOnLayoutReady();
-      await flushMicrotasks();
-
-      expect(firstWatcher!.close).toHaveBeenCalled();
+    it('should close the previous watcher when registering again', async () => {
+      await createReadyPlugin();
+      await hoisted.capturedLoadSettingsHandlers[0]?.();
+      const firstWatcher = getWatcher();
+      await hoisted.capturedSaveSettingsHandlers[0]?.();
+      expect(firstWatcher.close).toHaveBeenCalled();
     });
   });
 });
-/* eslint-enable @typescript-eslint/no-empty-function, @typescript-eslint/no-extraneous-class, @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-useless-constructor, @typescript-eslint/require-await, no-restricted-syntax -- End of test file. */
