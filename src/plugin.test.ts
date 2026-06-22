@@ -13,7 +13,10 @@ import {
   Component,
   FileSystemAdapter
 } from 'obsidian';
-import { waitForAllAsyncOperations } from 'obsidian-dev-utils/async';
+import {
+  sleep,
+  waitForAllAsyncOperations
+} from 'obsidian-dev-utils/async';
 import {
   noop,
   noopAsync
@@ -267,9 +270,7 @@ async function createReadyPlugin(): Promise<Plugin> {
 
 async function flush(): Promise<void> {
   // Tick one real macrotask so any pending window.setTimeout(0) (e.g. the CallbackLayoutReadyComponent guard) fires and registers its invokeAsyncSafely operation with the async-operation tracker.
-  await new Promise<void>((resolve) => {
-    window.setTimeout(resolve, 0);
-  });
+  await sleep(0);
   // Await every fire-and-forget operation scheduled via invokeAsyncSafely / convertAsyncToSync (onLayoutReady, watcher cleanup) instead of polling under arbitrary timeouts.
   await waitForAllAsyncOperations();
 }
