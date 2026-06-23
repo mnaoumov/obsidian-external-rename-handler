@@ -1,148 +1,36 @@
-import type { FSWatcher } from 'chokidar';
-import type { EventName } from 'chokidar/handler.js';
-// eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
-import type { Stats } from 'node:fs';
 import type { RenameDeleteHandlerSettings } from 'obsidian-dev-utils/obsidian/components/rename-delete-handler-component';
 
-import { getDataAdapterEx } from '@obsidian-typings/obsidian-public-latest/implementations';
-import { watch } from 'chokidar';
-// eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
-import { stat } from 'node:fs/promises';
 import { FileSystemAdapter } from 'obsidian';
-import { convertAsyncToSync } from 'obsidian-dev-utils/async';
-import { printError } from 'obsidian-dev-utils/error';
-import { registerAsyncEvent } from 'obsidian-dev-utils/obsidian/components/async-events-component';
-import { CallbackLayoutReadyComponent } from 'obsidian-dev-utils/obsidian/components/layout-ready-component';
-import { MonkeyAroundComponent } from 'obsidian-dev-utils/obsidian/components/monkey-around-component';
 import { PluginSettingsTabComponent } from 'obsidian-dev-utils/obsidian/components/plugin-settings-tab-component';
 import { RenameDeleteHandlerComponent } from 'obsidian-dev-utils/obsidian/components/rename-delete-handler-component';
 import { PluginDataHandler } from 'obsidian-dev-utils/obsidian/data-handler';
-import { loop } from 'obsidian-dev-utils/obsidian/loop';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin';
 import { PluginEventSourceImpl } from 'obsidian-dev-utils/obsidian/plugin/plugin-event-source';
-import { toPosixPath } from 'obsidian-dev-utils/path';
 
-import { PathInoMap } from './path-ino-map.ts';
+import { ExternalRenameHandlerComponent } from './external-rename-handler-component.ts';
 import { PluginSettingsComponent } from './plugin-settings-component.ts';
 import { PluginSettingsTab } from './plugin-settings-tab.ts';
 
-type OnFileChangeFn = FileSystemAdapter['onFileChange'];
-
 export class Plugin extends PluginBase {
-  public get abortSignal(): AbortSignal {
-    return this.abortSignalComponent.abortSignal;
-  }
-
-  protected get originalOnFileChange(): OnFileChangeFn {
-    if (!this._originalOnFileChange) {
-      throw new Error('originalOnFileChange is not initialized');
-    }
-    return this._originalOnFileChange;
-  }
-
-  private _fileSystemAdapter?: FileSystemAdapter;
-
-  private _originalOnFileChange?: OnFileChangeFn;
-
-  private _pluginSettingsComponent?: PluginSettingsComponent;
-
-  private pathInoMap = new PathInoMap();
-
-  private watcher: FSWatcher | null = null;
-
-  private get fileSystemAdapter(): FileSystemAdapter {
-    if (!this._fileSystemAdapter) {
-      throw new Error('fileSystemAdapter is not initialized');
-    }
-    return this._fileSystemAdapter;
-  }
-
-  private get pluginSettingsComponent(): PluginSettingsComponent {
-    if (!this._pluginSettingsComponent) {
-      throw new Error('pluginSettingsComponent is not initialized');
-    }
-    return this._pluginSettingsComponent;
-  }
-
-  protected async onLayoutReady(): Promise<void> {
-    this.pathInoMap = new PathInoMap();
-    await this.pathInoMap.init(this.app);
-    const rootIno = this.pathInoMap.getIno('/');
-    const rootStats = await stat(this.fileSystemAdapter.basePath);
-    if (rootIno !== rootStats.ino) {
-      this.pathInoMap.clear();
-    }
-
-    const cachedPaths = new Set<string>(this.pathInoMap.getPaths());
-
-    await loop({
-      abortSignal: this.abortSignalComponent.abortSignal,
-      buildNoticeMessage: (file, iterationStr) => `Preparing files ${iterationStr} - ${file.path}`,
-      items: this.app.vault.getAllLoadedFiles(),
-      processItem: async (file) => {
-        if (cachedPaths.delete(file.path)) {
-          return;
-        }
-        if (this.isDotFile(file.path)) {
-          return;
-        }
-        const stats = await stat(this.fileSystemAdapter.getFullRealPath(file.path));
-        this.pathInoMap.set(file.path, stats.ino);
-      },
-      progressBarTitle: 'External Rename Handler: Initializing...',
-      shouldShowProgressBar: true
-    });
-
-    if (cachedPaths.size > 0) {
-      await loop({
-        abortSignal: this.abortSignalComponent.abortSignal,
-        buildNoticeMessage: (path, iterationStr) => `Cleaning paths ${iterationStr} - ${path}`,
-        items: Array.from(cachedPaths),
-        processItem: (path) => {
-          this.pathInoMap.deletePath(path);
-        },
-        progressBarTitle: 'External Rename Handler: Cleanup...',
-        shouldShowProgressBar: true
-      });
-    }
-
-    const patch = this.addChild(new MonkeyAroundComponent());
-    patch.registerPatch(this.fileSystemAdapter, {
-      onFileChange: (next: OnFileChangeFn): OnFileChangeFn => {
-        this._originalOnFileChange = next.bind(this.fileSystemAdapter);
-        return this.onFileChange.bind(this);
-      }
-    });
-
-    registerAsyncEvent(
-      this,
-      this.pluginSettingsComponent.on('loadSettings', async () => {
-        await this.registerWatcher();
-      })
-    );
-
-    registerAsyncEvent(
-      this,
-      this.pluginSettingsComponent.on('saveSettings', async () => {
-        await this.registerWatcher();
-      })
-    );
-  }
-
   protected override onloadImpl(): void {
-    this._pluginSettingsComponent = this.addChild(
+    const pluginSettingsComponent = this.addChild(
       new PluginSettingsComponent({
         dataHandler: new PluginDataHandler(this),
         pluginEventSource: new PluginEventSourceImpl(this)
       })
     );
 
-    const settingsTab = new PluginSettingsTab({
+    const pluginSettingsTab = new PluginSettingsTab({
       plugin: this,
-      pluginSettingsComponent: this.pluginSettingsComponent
+      pluginSettingsComponent
     });
 
-    this.addChild(new PluginSettingsTabComponent({ plugin: this, pluginSettingsTab: settingsTab }));
+    this.addChild(
+      new PluginSettingsTabComponent({
+        plugin: this,
+        pluginSettingsTab
+      })
+    );
 
     this.addChild(
       new RenameDeleteHandlerComponent({
@@ -150,7 +38,7 @@ export class Plugin extends PluginBase {
         app: this.app,
         pluginId: this.manifest.id,
         settingsBuilder: (): Partial<RenameDeleteHandlerSettings> => ({
-          shouldHandleRenames: this.pluginSettingsComponent.settings.shouldUpdateLinks,
+          shouldHandleRenames: pluginSettingsComponent.settings.shouldUpdateLinks,
           shouldUpdateFileNameAliases: true
         })
       })
@@ -160,127 +48,15 @@ export class Plugin extends PluginBase {
       throw new Error('Vault adapter is not a FileSystemAdapter');
     }
 
-    this._fileSystemAdapter = this.app.vault.adapter;
+    const fileSystemAdapter = this.app.vault.adapter;
 
-    this.addChild(new CallbackLayoutReadyComponent(this.app, this.onLayoutReady.bind(this)));
-  }
-
-  private handleDeletion(ino: number, path: string): void {
-    if (this.pathInoMap.getPath(ino) !== path) {
-      return;
-    }
-    this.pathInoMap.deletePath(path);
-    this.originalOnFileChange(path);
-  }
-
-  private handleWatcherError(error: unknown): void {
-    printError(new Error('File system watcher error', { cause: error }));
-    this.originalOnFileChange('/');
-  }
-
-  private handleWatcherEvent(event: EventName, path: string, stats?: Stats): void {
-    path = toPosixPath(path) || '/';
-
-    if (this.isDotFile(path)) {
-      this.originalOnFileChange(path);
-      return;
-    }
-
-    switch (event) {
-      case 'add':
-      case 'addDir': {
-        if (path === '/') {
-          return;
-        }
-        if (!stats) {
-          this.originalOnFileChange(path);
-          return;
-        }
-        const oldPath = this.pathInoMap.getPath(stats.ino);
-
-        if (oldPath === path) {
-          return;
-        }
-
-        const isRename = oldPath !== undefined;
-        this.pathInoMap.set(path, stats.ino);
-
-        if (isRename) {
-          this.pathInoMap.deletePath(oldPath);
-
-          const fileEntry = this.fileSystemAdapter.files[oldPath];
-          if (fileEntry) {
-            // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- Need to delete file entry.
-            delete this.fileSystemAdapter.files[oldPath];
-            fileEntry.realpath = this.fileSystemAdapter.getRealPath(path);
-            this.fileSystemAdapter.files[path] = fileEntry;
-            this.app.vault.onChange('renamed', path, oldPath);
-
-            this.originalOnFileChange(oldPath);
-          }
-        }
-
-        this.originalOnFileChange(path);
-
-        break;
-      }
-      case 'unlink':
-      case 'unlinkDir': {
-        const ino = this.pathInoMap.getIno(path);
-        if (ino === undefined) {
-          return;
-        }
-
-        if (this.pluginSettingsComponent.settings.deletionRenameDetectionTimeoutInMilliseconds > 0) {
-          window.setTimeout(() => {
-            this.handleDeletion(ino, path);
-          }, this.pluginSettingsComponent.settings.deletionRenameDetectionTimeoutInMilliseconds);
-        } else {
-          this.handleDeletion(ino, path);
-        }
-        break;
-      }
-      default:
-        this.originalOnFileChange(path);
-        break;
-    }
-  }
-
-  private isDotFile(path: string): boolean {
-    path = toPosixPath(path) || '/';
-    return path.split('/').some((part) => part.startsWith('.'));
-  }
-
-  private onFileChange(path: null | string): void {
-    if (path === null) {
-      return;
-    }
-    if (this.isDotFile(path)) {
-      this.originalOnFileChange(path);
-    }
-  }
-
-  private async registerWatcher(): Promise<void> {
-    if (this.watcher) {
-      await this.watcher.close();
-    } else {
-      this.register(convertAsyncToSync(async () => this.watcher?.close()));
-    }
-
-    const adapter = getDataAdapterEx(this.app);
-
-    this.watcher = watch('.', {
-      atomic: true,
-      binaryInterval: this.pluginSettingsComponent.settings.pollingIntervalInMilliseconds,
-      cwd: adapter.basePath,
-      ignored: this.isDotFile.bind(this),
-      ignoreInitial: true,
-      interval: this.pluginSettingsComponent.settings.pollingIntervalInMilliseconds,
-      persistent: false,
-      usePolling: this.pluginSettingsComponent.settings.pollingIntervalInMilliseconds > 0
-    });
-
-    this.watcher.on('error', this.handleWatcherError.bind(this));
-    this.watcher.on('all', this.handleWatcherEvent.bind(this));
+    this.addChild(
+      new ExternalRenameHandlerComponent({
+        abortSignalComponent: this.abortSignalComponent,
+        app: this.app,
+        fileSystemAdapter,
+        pluginSettingsComponent
+      })
+    );
   }
 }
