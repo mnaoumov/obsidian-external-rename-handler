@@ -14,21 +14,22 @@ const DB_VERSION = 1;
 const PROCESS_STORE_ACTIONS_DEBOUNCE_INTERVAL_IN_MILLISECONDS = 5000;
 
 export class PathInoMap {
-  protected get db(): IDBDatabase {
-    if (!this._db) {
-      throw new Error('db is not initialized');
-    }
-    return this._db;
-  }
-
   private _db?: IDBDatabase;
 
   private pendingStoreActions: ((store: IDBObjectStore) => void)[] = [];
+
   private readonly processStoreActionsDebounced = debounce(() => {
     this.processStoreActions();
   }, PROCESS_STORE_ACTIONS_DEBOUNCE_INTERVAL_IN_MILLISECONDS);
 
   private readonly twoWayMap = new TwoWayMap<string, number>();
+
+  private get db(): IDBDatabase {
+    if (!this._db) {
+      throw new Error('db is not initialized');
+    }
+    return this._db;
+  }
 
   public clear(): void {
     this.twoWayMap.clear();

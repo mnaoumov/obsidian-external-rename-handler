@@ -35,13 +35,9 @@ interface ExternalRenameHandlerComponentConstructorParams {
 }
 
 export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
-  protected get originalOnFileChange(): OnFileChangeFn {
-    return ensureNonNullable(this._originalOnFileChange);
-  }
-
   private _originalOnFileChange?: OnFileChangeFn;
-  private readonly abortSignalComponent: AbortSignalComponent;
 
+  private readonly abortSignalComponent: AbortSignalComponent;
   private readonly fileSystemAdapter: FileSystemAdapter;
 
   private pathInoMap = new PathInoMap();
@@ -49,6 +45,10 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
   private readonly pluginSettingsComponent: PluginSettingsComponent;
 
   private watcher: FSWatcher | null = null;
+
+  private get originalOnFileChange(): OnFileChangeFn {
+    return ensureNonNullable(this._originalOnFileChange);
+  }
 
   public constructor(params: ExternalRenameHandlerComponentConstructorParams) {
     super(params.app);
