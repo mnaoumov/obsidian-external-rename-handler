@@ -3,9 +3,11 @@ import type { Stats } from 'node:fs';
 import type {
   App as AppOriginal,
   FileSystemAdapter as FileSystemAdapterOriginal,
+  Notice as NoticeOriginal,
   TAbstractFile
 } from 'obsidian';
 import type { AbortSignalComponent } from 'obsidian-dev-utils/obsidian/components/abort-signal-component';
+import type { PluginNoticeComponent } from 'obsidian-dev-utils/obsidian/components/plugin-notice-component';
 import type { Mock } from 'vitest';
 
 import { watch } from 'chokidar';
@@ -202,10 +204,20 @@ function createComponent(): ExternalRenameHandlerComponent {
     settings: hoisted.settings
   });
 
+  const pluginNoticeComponent = strictProxy<PluginNoticeComponent>({
+    showNotice: castTo<PluginNoticeComponent['showNotice']>(vi.fn(() =>
+      strictProxy<NoticeOriginal>({
+        hide: vi.fn(),
+        setMessage: vi.fn()
+      })
+    ))
+  });
+
   return new ExternalRenameHandlerComponent({
     abortSignalComponent: strictProxy<AbortSignalComponent>({ abortSignal: new AbortController().signal }),
     app,
     fileSystemAdapter: castTo<FileSystemAdapterOriginal>(adapter),
+    pluginNoticeComponent,
     pluginSettingsComponent
   });
 }
@@ -219,7 +231,7 @@ async function createReadyComponent(): Promise<ExternalRenameHandlerComponent> {
 
 async function flush(): Promise<void> {
   // Tick one real macrotask so the LayoutReadyComponent's setTimeout(0) guard fires and registers its invokeAsyncSafely operation with the async-operation tracker.
-  await sleep(0);
+  await sleep({ milliseconds: 0 });
   // Await every fire-and-forget operation scheduled via invokeAsyncSafely / convertAsyncToSync (onLayoutReady, watcher cleanup).
   await waitForAllAsyncOperations();
 }

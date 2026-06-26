@@ -19,7 +19,10 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
       .setName('Should update links')
       .setDesc('Whether to trigger a link update when a file is renamed externally')
       .addToggle((toggle) => {
-        this.bind(toggle, 'shouldUpdateLinks');
+        this.bind({
+          propertyName: 'shouldUpdateLinks',
+          valueComponent: toggle
+        });
       });
 
     new SettingEx(this.containerEl)
@@ -34,7 +37,10 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         f.appendText('Use 0 to disable polling.');
       }))
       .addNumber((numberComponent) => {
-        this.bind(numberComponent, 'pollingIntervalInMilliseconds')
+        this.bind({
+          propertyName: 'pollingIntervalInMilliseconds',
+          valueComponent: numberComponent
+        })
           .setMin(0);
       });
 
@@ -52,7 +58,10 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
         f.appendText('Use 0 to disable this timeout.');
       }))
       .addNumber((numberComponent) => {
-        this.bind(numberComponent, 'deletionRenameDetectionTimeoutInMilliseconds')
+        this.bind({
+          propertyName: 'deletionRenameDetectionTimeoutInMilliseconds',
+          valueComponent: numberComponent
+        })
           .setMin(0);
       });
   }

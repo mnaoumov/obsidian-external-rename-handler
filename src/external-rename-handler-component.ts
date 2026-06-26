@@ -5,6 +5,7 @@ import type {
   FileSystemAdapter
 } from 'obsidian';
 import type { AbortSignalComponent } from 'obsidian-dev-utils/obsidian/components/abort-signal-component';
+import type { PluginNoticeComponent } from 'obsidian-dev-utils/obsidian/components/plugin-notice-component';
 
 import { getDataAdapterEx } from '@obsidian-typings/obsidian-public-latest/implementations';
 import { watch } from 'chokidar';
@@ -31,6 +32,7 @@ interface ExternalRenameHandlerComponentConstructorParams {
   readonly abortSignalComponent: AbortSignalComponent;
   readonly app: App;
   readonly fileSystemAdapter: FileSystemAdapter;
+  readonly pluginNoticeComponent: PluginNoticeComponent;
   readonly pluginSettingsComponent: PluginSettingsComponent;
 }
 
@@ -42,6 +44,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
   private pathInoMap = new PathInoMap();
 
+  private readonly pluginNoticeComponent: PluginNoticeComponent;
   private readonly pluginSettingsComponent: PluginSettingsComponent;
 
   private watcher: FSWatcher | null = null;
@@ -54,6 +57,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     super(params.app);
     this.abortSignalComponent = params.abortSignalComponent;
     this.fileSystemAdapter = params.fileSystemAdapter;
+    this.pluginNoticeComponent = params.pluginNoticeComponent;
     this.pluginSettingsComponent = params.pluginSettingsComponent;
   }
 
@@ -72,6 +76,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
       abortSignal: this.abortSignalComponent.abortSignal,
       buildNoticeMessage: (file, iterationStr) => `Preparing files ${iterationStr} - ${file.path}`,
       items: this.app.vault.getAllLoadedFiles(),
+      pluginNoticeComponent: this.pluginNoticeComponent,
       processItem: async (file) => {
         if (cachedPaths.delete(file.path)) {
           return;
@@ -91,6 +96,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         abortSignal: this.abortSignalComponent.abortSignal,
         buildNoticeMessage: (path, iterationStr) => `Cleaning paths ${iterationStr} - ${path}`,
         items: Array.from(cachedPaths),
+        pluginNoticeComponent: this.pluginNoticeComponent,
         processItem: (path) => {
           this.pathInoMap.deletePath(path);
         },

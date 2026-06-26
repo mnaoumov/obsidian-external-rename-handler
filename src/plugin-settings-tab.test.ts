@@ -57,11 +57,11 @@ describe('PluginSettingsTab', () => {
   it('should render every setting in displayLegacy() and bind it to the correct property', () => {
     const tab = createTab();
     // The number settings chain `.setMin(0)` off the result of `bind()`, so the spy must return the component.
-    const bindSpy = vi.spyOn(tab, 'bind').mockImplementation((component) => component);
+    const bindSpy = vi.spyOn(tab, 'bind').mockImplementation((params) => params.valueComponent);
 
     tab.displayLegacy();
 
-    expect(bindSpy.mock.calls.map((call) => call[1])).toEqual(EXPECTED_BOUND_PROPERTIES);
+    expect(bindSpy.mock.calls.map((call) => call[0].propertyName)).toEqual(EXPECTED_BOUND_PROPERTIES);
     expect(tab.containerEl.children.length).toBe(EXPECTED_BOUND_PROPERTIES.length);
   });
 });
