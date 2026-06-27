@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 3.0.45
+
+- refactor: update template
+
 ## 3.0.44
 
 - chore: update manifest
