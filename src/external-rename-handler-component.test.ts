@@ -231,7 +231,7 @@ async function createReadyComponent(): Promise<ExternalRenameHandlerComponent> {
 
 async function flush(): Promise<void> {
   // Tick one real macrotask so the LayoutReadyComponent's setTimeout(0) guard fires and registers its invokeAsyncSafely operation with the async-operation tracker.
-  await sleep({ milliseconds: 0 });
+  await sleep(0);
   // Await every fire-and-forget operation scheduled via invokeAsyncSafely / convertAsyncToSync (onLayoutReady, watcher cleanup).
   await waitForAllAsyncOperations();
 }
