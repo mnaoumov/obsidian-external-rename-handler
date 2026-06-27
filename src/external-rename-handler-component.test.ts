@@ -11,10 +11,7 @@ import type { PluginNoticeComponent } from 'obsidian-dev-utils/obsidian/componen
 import type { Mock } from 'vitest';
 
 import { watch } from 'chokidar';
-import {
-  sleep,
-  waitForAllAsyncOperations
-} from 'obsidian-dev-utils/async';
+import { waitForAllAsyncOperations } from 'obsidian-dev-utils/async';
 import { noopAsync } from 'obsidian-dev-utils/function';
 import { castTo } from 'obsidian-dev-utils/object-utils';
 import { strictProxy } from 'obsidian-dev-utils/strict-proxy';

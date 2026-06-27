@@ -53,10 +53,6 @@ export class PathInoMap {
     return Array.from(this.twoWayMap.keys());
   }
 
-  public hasPath(path: string): boolean {
-    return this.twoWayMap.hasKey(path);
-  }
-
   public async init(app: App): Promise<void> {
     const request = activeWindow.indexedDB.open(`${app.appId}/external-rename-handler`, DB_VERSION);
     request.addEventListener('upgradeneeded', (event) => {

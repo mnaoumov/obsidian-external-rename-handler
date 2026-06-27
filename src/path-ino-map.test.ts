@@ -58,11 +58,6 @@ describe('PathInoMap', () => {
       expect(map.getPaths()).toEqual([]);
     });
 
-    it('should return false for hasPath', () => {
-      const map = new PathInoMap();
-      expect(map.hasPath('/test.md')).toBe(false);
-    });
-
     it('should throw when processStoreActions runs before init', () => {
       vi.useFakeTimers();
       const map = new PathInoMap();
@@ -85,7 +80,6 @@ describe('PathInoMap', () => {
       pathInoMap.set('/test.md', 100);
       expect(pathInoMap.getIno('/test.md')).toBe(100);
       expect(pathInoMap.getPath(100)).toBe('/test.md');
-      expect(pathInoMap.hasPath('/test.md')).toBe(true);
     });
 
     it('should return all paths', () => {
