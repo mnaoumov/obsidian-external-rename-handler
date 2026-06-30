@@ -36,6 +36,7 @@ export class Plugin extends PluginBase {
       new RenameDeleteHandlerComponent({
         abortSignalComponent: this.abortSignalComponent,
         app: this.app,
+        editorLockComponent: this.editorLockComponent,
         pluginId: this.manifest.id,
         pluginNoticeComponent: this.pluginNoticeComponent,
         settingsBuilder: (): Partial<RenameDeleteHandlerSettings> => ({
