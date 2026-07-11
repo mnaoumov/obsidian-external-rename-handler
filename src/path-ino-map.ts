@@ -5,6 +5,11 @@ import { TwoWayMap } from 'obsidian-dev-utils/two-way-map';
 
 const STORE_NAME = 'path-ino';
 
+export interface PathInoMapSetParams {
+  readonly ino: number;
+  readonly path: string;
+}
+
 interface DbEntry {
   ino: number;
   path: string;
@@ -76,7 +81,8 @@ export class PathInoMap {
     }
   }
 
-  public set(path: string, ino: number): void {
+  public set(params: PathInoMapSetParams): void {
+    const { ino, path } = params;
     const oldPath = this.getPath(ino);
     this.twoWayMap.set(path, ino);
 

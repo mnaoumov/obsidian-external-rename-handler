@@ -61,7 +61,7 @@ describe('PathInoMap', () => {
     it('should throw when processStoreActions runs before init', () => {
       vi.useFakeTimers();
       const map = new PathInoMap();
-      map.set('/test.md', 1);
+      map.set({ ino: 1, path: '/test.md' });
       expect(() => {
         vi.advanceTimersByTime(DEBOUNCE_MS);
       }).toThrow('db is not initialized');
@@ -77,47 +77,47 @@ describe('PathInoMap', () => {
     });
 
     it('should set and retrieve path-ino mappings', () => {
-      pathInoMap.set('/test.md', 100);
+      pathInoMap.set({ ino: 100, path: '/test.md' });
       expect(pathInoMap.getIno('/test.md')).toBe(100);
       expect(pathInoMap.getPath(100)).toBe('/test.md');
     });
 
     it('should return all paths', () => {
-      pathInoMap.set('/a.md', 1);
-      pathInoMap.set('/b.md', 2);
+      pathInoMap.set({ ino: 1, path: '/a.md' });
+      pathInoMap.set({ ino: 2, path: '/b.md' });
       expect(pathInoMap.getPaths()).toEqual(['/a.md', '/b.md']);
     });
 
     it('should delete a path', () => {
-      pathInoMap.set('/test.md', 100);
+      pathInoMap.set({ ino: 100, path: '/test.md' });
       pathInoMap.deletePath('/test.md');
       expect(pathInoMap.getIno('/test.md')).toBeUndefined();
       expect(pathInoMap.getPath(100)).toBeUndefined();
     });
 
     it('should clear all entries', () => {
-      pathInoMap.set('/a.md', 1);
-      pathInoMap.set('/b.md', 2);
+      pathInoMap.set({ ino: 1, path: '/a.md' });
+      pathInoMap.set({ ino: 2, path: '/b.md' });
       pathInoMap.clear();
       expect(pathInoMap.getPaths()).toEqual([]);
     });
 
     it('should handle rename by replacing old path for same ino', () => {
-      pathInoMap.set('/old.md', 100);
-      pathInoMap.set('/new.md', 100);
+      pathInoMap.set({ ino: 100, path: '/old.md' });
+      pathInoMap.set({ ino: 100, path: '/new.md' });
       expect(pathInoMap.getPath(100)).toBe('/new.md');
       expect(pathInoMap.getIno('/old.md')).toBeUndefined();
     });
 
     it('should handle set when oldPath equals path', () => {
-      pathInoMap.set('/same.md', 100);
-      pathInoMap.set('/same.md', 100);
+      pathInoMap.set({ ino: 100, path: '/same.md' });
+      pathInoMap.set({ ino: 100, path: '/same.md' });
       expect(pathInoMap.getPath(100)).toBe('/same.md');
     });
 
     it('should flush store actions on debounce', () => {
       vi.useFakeTimers();
-      pathInoMap.set('/test.md', 100);
+      pathInoMap.set({ ino: 100, path: '/test.md' });
       expect(() => {
         vi.advanceTimersByTime(DEBOUNCE_MS);
       }).not.toThrow();
@@ -125,8 +125,8 @@ describe('PathInoMap', () => {
 
     it('should flush rename store actions including old path deletion', () => {
       vi.useFakeTimers();
-      pathInoMap.set('/old.md', 100);
-      pathInoMap.set('/new.md', 100);
+      pathInoMap.set({ ino: 100, path: '/old.md' });
+      pathInoMap.set({ ino: 100, path: '/new.md' });
       expect(() => {
         vi.advanceTimersByTime(DEBOUNCE_MS);
       }).not.toThrow();
@@ -134,7 +134,7 @@ describe('PathInoMap', () => {
 
     it('should flush clear and delete store actions', () => {
       vi.useFakeTimers();
-      pathInoMap.set('/a.md', 1);
+      pathInoMap.set({ ino: 1, path: '/a.md' });
       pathInoMap.deletePath('/a.md');
       pathInoMap.clear();
       expect(() => {
@@ -150,7 +150,7 @@ describe('PathInoMap', () => {
 
       const map1 = new PathInoMap();
       await map1.init(app);
-      map1.set('/existing.md', 42);
+      map1.set({ ino: 42, path: '/existing.md' });
       await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
 
       vi.useRealTimers();

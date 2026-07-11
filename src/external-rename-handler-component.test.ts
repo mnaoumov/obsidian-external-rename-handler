@@ -25,6 +25,7 @@ import {
   vi
 } from 'vitest';
 
+import type { PathInoMapSetParams } from './path-ino-map.ts';
 import type { PluginSettingsComponent } from './plugin-settings-component.ts';
 
 const STRICT_PROXY_TARGET_SYMBOL = Symbol.for('strictProxyTarget');
@@ -58,7 +59,7 @@ interface PathInoMapStub {
   getPath: Mock<(ino: number) => string | undefined>;
   getPaths: Mock<() => string[]>;
   init: Mock<(app: AppOriginal) => Promise<void>>;
-  set: Mock<(path: string, ino: number) => void>;
+  set: Mock<(params: PathInoMapSetParams) => void>;
 }
 
 interface TestAdapter {
@@ -341,8 +342,8 @@ describe('ExternalRenameHandlerComponent', () => {
       hoisted.pathInoMapStub.getPaths.mockReturnValue(['/cached.md']);
       hoisted.stat.mockResolvedValue({ ino: 200 });
       await createReadyComponent();
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith('/new.md', 200);
-      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalledWith('/cached.md', 200);
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 200, path: '/new.md' });
+      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalledWith({ ino: 200, path: '/cached.md' });
     });
 
     it('should skip dot files while indexing loaded files', async () => {
@@ -403,19 +404,19 @@ describe('ExternalRenameHandlerComponent', () => {
       await setup();
       hoisted.pathInoMapStub.getPath.mockReturnValue('test.md');
       getWatcherHandler('all')('add', 'test.md', { ino: 200 });
-      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalledWith('test.md', 200);
+      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalledWith({ ino: 200, path: 'test.md' });
     });
 
     it('should index a new file add', async () => {
       await setup();
       getWatcherHandler('all')('add', 'new.md', { ino: 300 });
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith('new.md', 300);
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 300, path: 'new.md' });
     });
 
     it('should index a new addDir', async () => {
       await setup();
       getWatcherHandler('all')('addDir', 'newfolder', { ino: 400 });
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith('newfolder', 400);
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 400, path: 'newfolder' });
     });
 
     it('should handle a rename with a file entry', async () => {
@@ -423,7 +424,7 @@ describe('ExternalRenameHandlerComponent', () => {
       hoisted.pathInoMapStub.getPath.mockReturnValue('old.md');
       adapter.files['old.md'] = { realpath: '/test-vault/old.md' };
       getWatcherHandler('all')('add', 'renamed.md', { ino: 500 });
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith('renamed.md', 500);
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 500, path: 'renamed.md' });
       expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('old.md');
       expect(adapter.files['renamed.md']).toBeDefined();
       expect(adapter.files['old.md']).toBeUndefined();

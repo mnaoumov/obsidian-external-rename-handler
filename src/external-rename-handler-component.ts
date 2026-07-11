@@ -15,6 +15,7 @@ import { Stats } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { convertAsyncToSync } from 'obsidian-dev-utils/async';
 import { printError } from 'obsidian-dev-utils/error';
+import { normalizeOptionalProperties } from 'obsidian-dev-utils/object-utils';
 import { registerAsyncEvent } from 'obsidian-dev-utils/obsidian/components/async-events-component';
 import { LayoutReadyComponent } from 'obsidian-dev-utils/obsidian/components/layout-ready-component';
 import { loop } from 'obsidian-dev-utils/obsidian/loop';
@@ -34,6 +35,17 @@ interface ExternalRenameHandlerComponentConstructorParams {
   readonly fileSystemAdapter: FileSystemAdapter;
   readonly pluginNoticeComponent: PluginNoticeComponent;
   readonly pluginSettingsComponent: PluginSettingsComponent;
+}
+
+interface ExternalRenameHandlerComponentHandleDeletionParams {
+  readonly ino: number;
+  readonly path: string;
+}
+
+interface ExternalRenameHandlerComponentHandleWatcherEventParams {
+  readonly event: EventName;
+  readonly path: string;
+  readonly stats?: Stats;
 }
 
 export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
@@ -85,7 +97,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
           return;
         }
         const stats = await stat(this.fileSystemAdapter.getFullRealPath(file.path));
-        this.pathInoMap.set(file.path, stats.ino);
+        this.pathInoMap.set({ ino: stats.ino, path: file.path });
       },
       progressBarTitle: 'External Rename Handler: Initializing...',
       shouldShowProgressBar: true
@@ -123,7 +135,8 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     );
   }
 
-  private handleDeletion(ino: number, path: string): void {
+  private handleDeletion(params: ExternalRenameHandlerComponentHandleDeletionParams): void {
+    const { ino, path } = params;
     if (this.pathInoMap.getPath(ino) !== path) {
       return;
     }
@@ -136,7 +149,9 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     this.originalOnFileChange('/');
   }
 
-  private handleWatcherEvent(event: EventName, path: string, stats?: Stats): void {
+  private handleWatcherEvent(params: ExternalRenameHandlerComponentHandleWatcherEventParams): void {
+    const { event, stats } = params;
+    let { path } = params;
     path = toPosixPath(path) || '/';
 
     if (isDotFile(path)) {
@@ -161,7 +176,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         }
 
         const isRename = oldPath !== undefined;
-        this.pathInoMap.set(path, stats.ino);
+        this.pathInoMap.set({ ino: stats.ino, path });
 
         if (isRename) {
           this.pathInoMap.deletePath(oldPath);
@@ -191,10 +206,10 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
         if (this.pluginSettingsComponent.settings.deletionRenameDetectionTimeoutInMilliseconds > 0) {
           window.setTimeout(() => {
-            this.handleDeletion(ino, path);
+            this.handleDeletion({ ino, path });
           }, this.pluginSettingsComponent.settings.deletionRenameDetectionTimeoutInMilliseconds);
         } else {
-          this.handleDeletion(ino, path);
+          this.handleDeletion({ ino, path });
         }
         break;
       }
@@ -225,6 +240,8 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     });
 
     this.watcher.on('error', this.handleWatcherError.bind(this));
-    this.watcher.on('all', this.handleWatcherEvent.bind(this));
+    this.watcher.on('all', (event: EventName, path: string, stats?: Stats) => {
+      this.handleWatcherEvent(normalizeOptionalProperties<ExternalRenameHandlerComponentHandleWatcherEventParams>({ event, path, stats }));
+    });
   }
 }
