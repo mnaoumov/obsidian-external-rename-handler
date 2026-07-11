@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 3.0.46
+
+- chore: overexposed
+- chore: update libs
+- chore: update obsidian-dev-utils to 85.0.0
+- refactor: pass params objects to rename-handler and path-ino-map methods
+- build: lock typescript to 6.0.3
+- test: wire integration-testing vitest-setup into integration projects
+- chore: update libs
+- chore: sort tsconfig types
+
 ## 3.0.45
 
 - refactor: update template
