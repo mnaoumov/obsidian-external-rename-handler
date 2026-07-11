@@ -5,14 +5,14 @@ import { TwoWayMap } from 'obsidian-dev-utils/two-way-map';
 
 const STORE_NAME = 'path-ino';
 
-export interface PathInoMapSetParams {
-  readonly ino: number;
-  readonly path: string;
-}
-
 interface DbEntry {
   ino: number;
   path: string;
+}
+
+interface PathInoMapSetParams {
+  readonly ino: number;
+  readonly path: string;
 }
 
 const DB_VERSION = 1;

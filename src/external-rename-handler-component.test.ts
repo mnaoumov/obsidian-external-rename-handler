@@ -25,7 +25,6 @@ import {
   vi
 } from 'vitest';
 
-import type { PathInoMapSetParams } from './path-ino-map.ts';
 import type { PluginSettingsComponent } from './plugin-settings-component.ts';
 
 const STRICT_PROXY_TARGET_SYMBOL = Symbol.for('strictProxyTarget');
@@ -59,7 +58,12 @@ interface PathInoMapStub {
   getPath: Mock<(ino: number) => string | undefined>;
   getPaths: Mock<() => string[]>;
   init: Mock<(app: AppOriginal) => Promise<void>>;
-  set: Mock<(params: PathInoMapSetParams) => void>;
+  set: Mock<(params: SetParams) => void>;
+}
+
+interface SetParams {
+  readonly ino: number;
+  readonly path: string;
 }
 
 interface TestAdapter {
