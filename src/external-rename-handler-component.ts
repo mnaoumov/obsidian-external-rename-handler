@@ -86,7 +86,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
     await loop({
       abortSignal: this.abortSignalComponent.abortSignal,
-      buildNoticeMessage: (file, iterationStr) => `Preparing files ${iterationStr} - ${file.path}`,
+      buildNoticeMessage: ({ item, iterationStr }) => `Preparing files ${iterationStr} - ${item.path}`,
       items: this.app.vault.getAllLoadedFiles(),
       pluginNoticeComponent: this.pluginNoticeComponent,
       processItem: async (file) => {
@@ -106,7 +106,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     if (cachedPaths.size > 0) {
       await loop({
         abortSignal: this.abortSignalComponent.abortSignal,
-        buildNoticeMessage: (path, iterationStr) => `Cleaning paths ${iterationStr} - ${path}`,
+        buildNoticeMessage: ({ item, iterationStr }) => `Cleaning paths ${iterationStr} - ${item}`,
         items: Array.from(cachedPaths),
         pluginNoticeComponent: this.pluginNoticeComponent,
         processItem: (path) => {

@@ -43,7 +43,7 @@ function createTab(): PluginSettingsTab {
   });
 
   const tab = new PluginSettingsTab({ plugin, pluginSettingsComponent });
-  tab.containerEl = activeDocument.createElement('div');
+  tab.containerEl = activeWindow.createDiv();
   return tab;
 }
 
