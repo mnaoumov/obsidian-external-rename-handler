@@ -39,7 +39,3 @@ External Rename Handler is an Obsidian plugin that handles renames made outside 
   - `plugin-settings-tab.ts` — `PluginSettingsTab` rendering the settings UI via `SettingEx`
   - `patches/file-system-adapter-on-file-change-patch-component.ts` — `MonkeyAroundComponent` that patches `FileSystemAdapter.onFileChange` to suppress dot-file events and capture the original method for the handler to invoke
 - **`main` field** points to `src/main.ts` (Obsidian plugin source entry; built artifact is `dist/build/main.js`, not published to npm).
-
-## Known Issues
-
-None.
