@@ -162,6 +162,15 @@ describe('Plugin', () => {
       expect(castTo<SettingTabsHolder>(plugin).settingTabs__).toHaveLength(1);
     });
 
+    it('should register the open demo vault command via its command handler', async () => {
+      const plugin = new Plugin(app, manifest);
+      const addCommandSpy = vi.spyOn(plugin, 'addCommand');
+      await plugin.onload();
+      expect(addCommandSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'open-demo-vault' })
+      );
+    });
+
     it('should throw when the vault adapter is not a FileSystemAdapter', async () => {
       app = createApp({});
       const plugin = new Plugin(app, manifest);
