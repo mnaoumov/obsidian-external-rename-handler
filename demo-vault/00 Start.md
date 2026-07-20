@@ -2,18 +2,9 @@ Welcome to the [External Rename Handler](https://github.com/mnaoumov/obsidian-ex
 
 **How to try it:** keep Obsidian open, then use your operating system's file manager or a terminal to rename [[Rename me externally]] to something else (for example `Renamed externally.md`). Watch the links in [[References/Link A]] and [[References/Link B]] follow the file to its new name. Full steps are in [[01 External renames]].
 
-> [!TIP] Interactive buttons
->
-> The two setup notes have **Run** buttons, powered by [`CodeScript Toolkit`](https://github.com/mnaoumov/obsidian-codescript-toolkit/), which this vault installs for you automatically on first open (see [[06 CodeScript Toolkit prerequisite]]). The feature itself is driven by renaming files *outside* Obsidian, so the feature notes have no buttons.
-
 ## Feature
 
 - [[01 External renames]]
 - [[02 Moving and folders]]
 - [[03 How it works]]
 - [[04 Settings]]
-
-## Setup
-
-- [[05 Code buttons check]]
-- [[06 CodeScript Toolkit prerequisite]]
