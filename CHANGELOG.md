@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 3.0.47
+
+- docs: standardize demo-vault README
+- docs: drop per-plugin demo-vault setup notes (bootstrap covered by ODU harness)
+- Merge branch 'T108': create the External Rename Handler demo vault (S2)
+- chore: update libs
+- docs: update
+- docs: migrate to AGENTS.md
+
 ## 3.0.46
 
 - chore: overexposed
