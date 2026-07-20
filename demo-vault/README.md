@@ -1,9 +1,8 @@
-# External Rename Handler demo vault
+This is an [Obsidian](https://obsidian.md/) vault demonstrating features of the [External Rename Handler](https://github.com/mnaoumov/obsidian-external-rename-handler) plugin.
 
-A small Obsidian vault that demonstrates the [External Rename Handler](https://github.com/mnaoumov/obsidian-external-rename-handler) plugin - it watches the vault while Obsidian is running, recognizes files that were renamed or moved *outside* the app as real renames, and lets Obsidian update the links instead of breaking them.
+## Opening this vault
 
-Open [00 Start](<./00 Start.md>) and work through the notes. Keep Obsidian open, rename [Rename me externally](<./Rename me externally.md>) from your OS file manager or terminal, and watch the links in `References/` follow it.
+- **If you already have the plugin installed**, run the **External Rename Handler: Open demo vault** command — it downloads and opens the latest demo vault automatically.
+- **Otherwise**, download `external-rename-handler.demo-vault.zip` from the [plugin releases](https://github.com/mnaoumov/obsidian-external-rename-handler/releases), unzip it, and in Obsidian choose `Manage vaults...` → `Open folder as vault` → select the unzipped folder.
 
-## First open
-
-The first time you open this vault, Obsidian treats it as **untrusted**, so the bundled plugins are listed but not loaded until you **Trust author and enable plugins** and reload. After that, the Demo Vault Helper opens the start note for you.
+On first open, Obsidian treats the vault as untrusted — choose **Trust author and enable plugins** (or enable Community plugins manually), then open [00 Start](<./00 Start.md>).
