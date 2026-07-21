@@ -1,6 +1,6 @@
 {
   "name": "external-rename-handler",
-  "version": "3.0.48",
+  "version": "3.0.49",
   "description": "Handles renames made outside of Obsidian",
   "keywords": [],
   "homepage": "https://github.com/mnaoumov/obsidian-external-rename-handler#readme",
