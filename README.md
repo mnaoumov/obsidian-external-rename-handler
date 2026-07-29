@@ -28,7 +28,7 @@ This plugin handles renames made outside of Obsidian app by treating them as a s
 A demo vault with usage examples ships with every release. You can access it via any of the following:
 
 1. Running the **External Rename Handler: Open demo vault** command.
-2. Downloading `external-rename-handler.demo-vault.zip` from the [Releases](https://github.com/mnaoumov/obsidian-external-rename-handler/releases).
+2. Downloading `external-rename-handler-demo-vault-<version>.zip` (`<version>` is the release version) from the [Releases](https://github.com/mnaoumov/obsidian-external-rename-handler/releases).
 3. Browsing its source in [`demo-vault/`](./demo-vault/README.md) in this repository.
 
 ## Installation
