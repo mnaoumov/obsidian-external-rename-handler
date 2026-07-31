@@ -1,6 +1,11 @@
-import type { Plugin } from 'obsidian';
+import type {
+  Plugin,
+  SettingGroup
+} from 'obsidian';
 import type { PluginSettingsComponentBase } from 'obsidian-dev-utils/obsidian/components/plugin-settings-component';
 
+import { castTo } from 'obsidian-dev-utils/object-utils';
+import { SettingEx } from 'obsidian-dev-utils/obsidian/setting-ex';
 import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import {
   describe,
@@ -54,14 +59,19 @@ describe('PluginSettingsTab', () => {
     expect(tab).toBeInstanceOf(PluginSettingsTab);
   });
 
-  it('should render every setting in displayLegacy() and bind it to the correct property', () => {
+  it('should declare every setting and bind it to the correct property when rendered', () => {
     const tab = createTab();
     // The number settings chain `.setMin(0)` off the result of `bind()`, so the spy must return the component.
     const bindSpy = vi.spyOn(tab, 'bind').mockImplementation((params) => params.valueComponent);
 
-    tab.displayLegacy();
+    const definitions = tab.getSettingDefinitions();
+    for (const definition of definitions) {
+      if ('render' in definition) {
+        definition.render(new SettingEx(tab.containerEl), castTo<SettingGroup>(null));
+      }
+    }
 
     expect(bindSpy.mock.calls.map((call) => call[0].propertyName)).toEqual(EXPECTED_BOUND_PROPERTIES);
-    expect(tab.containerEl.children.length).toBe(EXPECTED_BOUND_PROPERTIES.length);
+    expect(definitions.length).toBe(EXPECTED_BOUND_PROPERTIES.length);
   });
 });
