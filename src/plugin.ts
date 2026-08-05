@@ -48,7 +48,7 @@ export class Plugin extends PluginBase {
     );
 
     if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
-      throw new Error('Vault adapter is not a FileSystemAdapter');
+      throw new TypeError('Vault adapter is not a FileSystemAdapter');
     }
 
     const fileSystemAdapter = this.app.vault.adapter;
@@ -63,7 +63,7 @@ export class Plugin extends PluginBase {
       })
     );
 
-    this.commandHandlerComponent.registerCommandHandlers([
+    this.commandHandlerComponent.registerCommandHandlers(() => [
       new OpenDemoVaultCommandHandler({
         app: this.app,
         pluginId: this.manifest.id,

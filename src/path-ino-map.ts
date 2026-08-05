@@ -5,7 +5,7 @@ import { TwoWayMap } from 'obsidian-dev-utils/two-way-map';
 
 const STORE_NAME = 'path-ino';
 
-interface DbEntry {
+interface DatabaseEntry {
   ino: number;
   path: string;
 }
@@ -19,7 +19,7 @@ const DB_VERSION = 1;
 const PROCESS_STORE_ACTIONS_DEBOUNCE_INTERVAL_IN_MILLISECONDS = 5000;
 
 export class PathInoMap {
-  private _db?: IDBDatabase;
+  private _database?: IDBDatabase;
 
   private pendingStoreActions: ((store: IDBObjectStore) => void)[] = [];
 
@@ -29,11 +29,11 @@ export class PathInoMap {
 
   private readonly twoWayMap = new TwoWayMap<string, number>();
 
-  private get db(): IDBDatabase {
-    if (!this._db) {
-      throw new Error('db is not initialized');
+  private get database(): IDBDatabase {
+    if (!this._database) {
+      throw new Error('database is not initialized');
     }
-    return this._db;
+    return this._database;
   }
 
   public clear(): void {
@@ -55,7 +55,7 @@ export class PathInoMap {
   }
 
   public getPaths(): string[] {
-    return Array.from(this.twoWayMap.keys());
+    return [...this.twoWayMap.keys()];
   }
 
   public async init(app: App): Promise<void> {
@@ -64,19 +64,19 @@ export class PathInoMap {
       if (event.newVersion !== 1) {
         return;
       }
-      const db = request.result;
-      db.createObjectStore(STORE_NAME, {
+      const database = request.result;
+      database.createObjectStore(STORE_NAME, {
         keyPath: 'path'
       });
     });
 
-    const db = await getResult(request);
+    const database = await getResult(request);
 
-    this._db = db;
-    const transaction = db.transaction(STORE_NAME, 'readonly');
+    this._database = database;
+    const transaction = database.transaction(STORE_NAME, 'readonly');
     const store = transaction.objectStore(STORE_NAME);
-    const dbEntries = await getResult(store.getAll()) as DbEntry[];
-    for (const entry of dbEntries) {
+    const databaseEntries = await getResult(store.getAll()) as DatabaseEntry[];
+    for (const entry of databaseEntries) {
       this.twoWayMap.set(entry.path, entry.ino);
     }
   }
@@ -104,7 +104,7 @@ export class PathInoMap {
     const pendingStoreActions = this.pendingStoreActions;
     this.pendingStoreActions = [];
 
-    const transaction = this.db.transaction(STORE_NAME, 'readwrite');
+    const transaction = this.database.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
     for (const action of pendingStoreActions) {
       action(store);

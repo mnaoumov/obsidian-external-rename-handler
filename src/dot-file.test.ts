@@ -24,6 +24,6 @@ describe('isDotFile', () => {
   });
 
   it('should normalize backslashes before inspecting the segments', () => {
-    expect(isDotFile('notes\\.git\\config')).toBe(true);
+    expect(isDotFile(String.raw`notes\.git\config`)).toBe(true);
   });
 });
