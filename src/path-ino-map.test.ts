@@ -22,7 +22,7 @@ function createMockApp(appId: string): App {
 }
 
 describe('PathInoMap', () => {
-  let dbCounter = 0;
+  let databaseCounter = 0;
 
   beforeAll(() => {
     if (!activeWindow.indexedDB) {
@@ -39,7 +39,7 @@ describe('PathInoMap', () => {
   });
 
   function createUniqueApp(): App {
-    return createMockApp(`test-${String(dbCounter++)}`);
+    return createMockApp(`test-${String(databaseCounter++)}`);
   }
 
   describe('before init', () => {
@@ -64,7 +64,7 @@ describe('PathInoMap', () => {
       map.set({ ino: 1, path: '/test.md' });
       expect(() => {
         vi.advanceTimersByTime(DEBOUNCE_MS);
-      }).toThrow('db is not initialized');
+      }).toThrow('database is not initialized');
     });
   });
 
@@ -170,8 +170,7 @@ describe('PathInoMap', () => {
         addEventListener: vi.fn((type: string, listener: EventListenerOrEventListenerObject) => {
           if (type === 'upgradeneeded') {
             (listener as EventListener)({ newVersion: 2 } as unknown as IDBVersionChangeEvent);
-          }
-          if (type === 'success') {
+          } else if (type === 'success') {
             queueMicrotask(() => {
               (listener as EventListener)(new Event('success'));
             });
@@ -222,7 +221,7 @@ describe('PathInoMap', () => {
 
   describe('getResult synchronous path', () => {
     it('should return immediately when readyState is done', async () => {
-      const mockDb = {
+      const mockDatabase = {
         transaction: vi.fn(() => ({
           objectStore: vi.fn(() => ({
             getAll: vi.fn(() => ({
@@ -238,13 +237,13 @@ describe('PathInoMap', () => {
         addEventListener: vi.fn(),
         error: null,
         readyState: 'done',
-        result: mockDb
+        result: mockDatabase
       } as unknown as IDBOpenDBRequest);
 
       const map = new PathInoMap();
       await map.init(createUniqueApp());
 
-      expect(mockDb.transaction).toHaveBeenCalled();
+      expect(mockDatabase.transaction).toHaveBeenCalled();
     });
   });
 });

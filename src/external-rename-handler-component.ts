@@ -22,7 +22,7 @@ import { loop } from 'obsidian-dev-utils/obsidian/loop';
 import { toPosixPath } from 'obsidian-dev-utils/path';
 import { ensureNonNullable } from 'obsidian-dev-utils/type-guards';
 
-import type { OnFileChangeFn } from './patches/file-system-adapter-on-file-change-patch-component.ts';
+import type { OnFileChangeFunction } from './patches/file-system-adapter-on-file-change-patch-component.ts';
 import type { PluginSettingsComponent } from './plugin-settings-component.ts';
 
 import { isDotFile } from './dot-file.ts';
@@ -49,7 +49,7 @@ interface ExternalRenameHandlerComponentHandleWatcherEventParams {
 }
 
 export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
-  private _originalOnFileChange?: OnFileChangeFn;
+  private _originalOnFileChange?: OnFileChangeFunction;
 
   private readonly abortSignalComponent: AbortSignalComponent;
   private readonly fileSystemAdapter: FileSystemAdapter;
@@ -61,7 +61,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
   private watcher: FSWatcher | null = null;
 
-  private get originalOnFileChange(): OnFileChangeFn {
+  private get originalOnFileChange(): OnFileChangeFunction {
     return ensureNonNullable(this._originalOnFileChange);
   }
 
@@ -86,7 +86,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
     await loop({
       abortSignal: this.abortSignalComponent.abortSignal,
-      buildNoticeMessage: ({ item, iterationStr }) => `Preparing files ${iterationStr} - ${item.path}`,
+      buildNoticeMessage: ({ item, iterationString }) => `Preparing files ${iterationString} - ${item.path}`,
       items: this.app.vault.getAllLoadedFiles(),
       pluginNoticeComponent: this.pluginNoticeComponent,
       processItem: async (file) => {
@@ -106,8 +106,8 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     if (cachedPaths.size > 0) {
       await loop({
         abortSignal: this.abortSignalComponent.abortSignal,
-        buildNoticeMessage: ({ item, iterationStr }) => `Cleaning paths ${iterationStr} - ${item}`,
-        items: Array.from(cachedPaths),
+        buildNoticeMessage: ({ item, iterationString }) => `Cleaning paths ${iterationString} - ${item}`,
+        items: [...cachedPaths],
         pluginNoticeComponent: this.pluginNoticeComponent,
         processItem: (path) => {
           this.pathInoMap.deletePath(path);
@@ -213,9 +213,10 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         }
         break;
       }
-      default:
+      default: {
         this.originalOnFileChange(path);
         break;
+      }
     }
   }
 

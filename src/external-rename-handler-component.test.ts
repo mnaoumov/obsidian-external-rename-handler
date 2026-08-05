@@ -76,10 +76,10 @@ interface TestAdapter {
 
 interface WatcherMock {
   close(): Promise<void>;
-  on(event: string, handler: (...args: unknown[]) => void): WatcherMock;
+  on(event: string, handler: (...$arguments: unknown[]) => void): WatcherMock;
 }
 
-type WatcherOnCalls = [string, (...args: unknown[]) => void][];
+type WatcherOnCalls = [string, (...$arguments: unknown[]) => void][];
 
 interface WatcherOnMock {
   mock: WatcherOnMockData;
@@ -178,8 +178,8 @@ function createAdapter(): TestAdapter {
 function createApp(): AppOriginal {
   adapter = createAdapter();
   const appMock = App.createConfigured__({ adapter: castTo<FileSystemAdapterOriginal>(adapter) });
-  appMock.workspace.onLayoutReady = vi.fn((cb: () => void) => {
-    capturedLayoutReadyCallback = cb;
+  appMock.workspace.onLayoutReady = vi.fn((callback: () => void) => {
+    capturedLayoutReadyCallback = callback;
   });
   const newApp = appMock.asOriginalType__();
 
@@ -247,10 +247,10 @@ function getWatcher(index = -1): WatcherMock {
   return castTo<WatcherMock>(result.value);
 }
 
-function getWatcherHandler(event: string): (...args: unknown[]) => void {
+function getWatcherHandler(event: string): (...$arguments: unknown[]) => void {
   const results = vi.mocked(watch).mock.results;
-  for (let i = results.length - 1; i >= 0; i--) {
-    const result = results[i];
+  for (let index = results.length - 1; index >= 0; index--) {
+    const result = results[index];
     if (result?.type !== 'return') {
       continue;
     }

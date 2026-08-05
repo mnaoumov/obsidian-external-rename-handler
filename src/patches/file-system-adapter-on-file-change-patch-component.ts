@@ -5,14 +5,14 @@ import { ensureNonNullable } from 'obsidian-dev-utils/type-guards';
 
 import { isDotFile } from '../dot-file.ts';
 
-export type OnFileChangeFn = FileSystemAdapter['onFileChange'];
+export type OnFileChangeFunction = FileSystemAdapter['onFileChange'];
 
 export class FileSystemAdapterOnFileChangePatchComponent extends MonkeyAroundComponent {
-  public get originalOnFileChange(): OnFileChangeFn {
+  public get originalOnFileChange(): OnFileChangeFunction {
     return ensureNonNullable(this._originalOnFileChange);
   }
 
-  private _originalOnFileChange?: OnFileChangeFn;
+  private _originalOnFileChange?: OnFileChangeFunction;
 
   public constructor(private readonly fileSystemAdapter: FileSystemAdapter) {
     super();
@@ -20,11 +20,11 @@ export class FileSystemAdapterOnFileChangePatchComponent extends MonkeyAroundCom
 
   public override onload(): void {
     this.registerMethodPatch({
+      $object: this.fileSystemAdapter,
       methodName: 'onFileChange',
-      obj: this.fileSystemAdapter,
       patchHandler: ({
         fallback,
-        originalArgs: [normalizedPath]
+        originalArguments: [normalizedPath]
       }) => {
         if (normalizedPath === null) {
           return;
