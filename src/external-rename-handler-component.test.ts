@@ -371,19 +371,24 @@ describe('ExternalRenameHandlerComponent', () => {
       expect(typeof adapter.onFileChange).toBe('function');
     });
 
-    it('should register a watcher via the settings event handlers', async () => {
+    // Regression test for GH #7: the settings are already loaded by the time the layout is ready, so the `loadSettings` handler
+    // Registered below never receives its event. When starting the watcher was left to that handler alone, no watcher was ever created
+    // While the patch still suppressed Obsidian's own notifications, and every external change was silently dropped.
+    it('should start the watcher without waiting for a settings event', async () => {
+      await createReadyComponent();
+      expect(watch).toHaveBeenCalled();
+    });
+
+    it('should register the settings event handlers so later settings changes re-register the watcher', async () => {
       await createReadyComponent();
       expect(hoisted.capturedLoadSettingsHandlers).toHaveLength(1);
       expect(hoisted.capturedSaveSettingsHandlers).toHaveLength(1);
-      await hoisted.capturedLoadSettingsHandlers[0]?.();
-      expect(watch).toHaveBeenCalled();
     });
   });
 
   describe('handleWatcherEvent', () => {
     async function setup(): Promise<void> {
       await createReadyComponent();
-      await hoisted.capturedLoadSettingsHandlers[0]?.();
     }
 
     it('should forward dot files to the original onFileChange', async () => {
@@ -503,7 +508,6 @@ describe('ExternalRenameHandlerComponent', () => {
   describe('handleWatcherError', () => {
     it('should print the error and forward to the original onFileChange', async () => {
       await createReadyComponent();
-      await hoisted.capturedLoadSettingsHandlers[0]?.();
       getWatcherHandler('error')(new Error('test error'));
       // The error handler runs the real printError (no throw) and forwards the root path to the original onFileChange.
       expect(originalOnFileChangeSpy).toHaveBeenCalledWith('/');
@@ -513,7 +517,6 @@ describe('ExternalRenameHandlerComponent', () => {
   describe('registerWatcher', () => {
     it('should create the watcher with the expected options', async () => {
       await createReadyComponent();
-      await hoisted.capturedLoadSettingsHandlers[0]?.();
       expect(watch).toHaveBeenCalledWith(
         '.',
         expect.objectContaining({
@@ -528,28 +531,31 @@ describe('ExternalRenameHandlerComponent', () => {
 
     it('should treat an empty path as the root (not ignored)', async () => {
       await createReadyComponent();
-      await hoisted.capturedLoadSettingsHandlers[0]?.();
       expect(getWatchOptions().ignored('')).toBe(false);
     });
 
     it('should treat a dot path as ignored', async () => {
       await createReadyComponent();
-      await hoisted.capturedLoadSettingsHandlers[0]?.();
       expect(getWatchOptions().ignored('.hidden-folder/config')).toBe(true);
     });
 
     it('should register a cleanup that closes the watcher on the first call', async () => {
       const component = await createReadyComponent();
-      await hoisted.capturedLoadSettingsHandlers[0]?.();
       const watcher = getWatcher();
       component.unload();
       await flush();
       expect(watcher.close).toHaveBeenCalled();
     });
 
-    it('should close the previous watcher when registering again', async () => {
+    it('should close the previous watcher when the settings are reloaded', async () => {
       await createReadyComponent();
+      const firstWatcher = getWatcher();
       await hoisted.capturedLoadSettingsHandlers[0]?.();
+      expect(firstWatcher.close).toHaveBeenCalled();
+    });
+
+    it('should close the previous watcher when the settings are saved', async () => {
+      await createReadyComponent();
       const firstWatcher = getWatcher();
       await hoisted.capturedSaveSettingsHandlers[0]?.();
       expect(firstWatcher.close).toHaveBeenCalled();
