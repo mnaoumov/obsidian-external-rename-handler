@@ -120,6 +120,11 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     const patch = this.addChild(new FileSystemAdapterOnFileChangePatchComponent(this.fileSystemAdapter));
     this._originalOnFileChange = patch.originalOnFileChange;
 
+    // The patch above suppresses Obsidian's own file-change notifications, so the watcher registered here is the only thing left that
+    // Reaches the UI. The settings are already loaded by the time the layout is ready, which means the `loadSettings` handler below has
+    // Missed its event and can no longer be relied on to start the watcher.
+    await this.registerWatcher();
+
     registerAsyncEvent(
       this,
       this.pluginSettingsComponent.on('loadSettings', async () => {
