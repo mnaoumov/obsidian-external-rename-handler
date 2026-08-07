@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 3.1.2
+
+- fix: re #7
+
 ## 3.1.1
 
 - chore: update libs
