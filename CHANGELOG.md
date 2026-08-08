@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 3.1.3
+
+- chore: update libs and adopt obsidian-integration-testing 10
+
 ## 3.1.2
 
 - fix: re #7
