@@ -5,7 +5,7 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 import { evalInObsidian } from 'obsidian-integration-testing';
-import { getTempVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
+import { getTemporaryVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
 import {
   afterEach,
   describe,
@@ -23,7 +23,7 @@ const INITIAL_CONTENT = 'initial content';
 const APPENDED_CONTENT = 'appended content';
 
 function getFullPath(path: string): string {
-  return join(getTempVault().path, path);
+  return join(getTemporaryVault().path, path);
 }
 
 async function removeExternally(path: string): Promise<void> {
@@ -32,21 +32,19 @@ async function removeExternally(path: string): Promise<void> {
 
 async function waitForVaultToSee(path: string, shouldExist: boolean): Promise<void> {
   await evalInObsidian({
-    // eslint-disable-next-line unicorn/name-replacements -- `args` is an `obsidian-integration-testing` parameter name.
-    args: {
-      path,
-      shouldExist,
-      WAIT_TIMEOUT_IN_MILLISECONDS
-    },
-    // eslint-disable-next-line unicorn/name-replacements -- `fn` is an `obsidian-integration-testing` parameter name.
-    async fn({ app, lib: { waitUntil }, path: notePath, shouldExist: isExpectedToExist, WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds }) {
+    async callback({ app, lib: { waitUntil }, path: notePath, shouldExist: isExpectedToExist, WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds }) {
       await waitUntil({
         message: `The vault ${isExpectedToExist ? 'never saw' : 'still sees'} the externally changed note ${notePath}`,
         predicate: () => (app.vault.getAbstractFileByPath(notePath) !== null) === isExpectedToExist,
         timeoutInMilliseconds
       });
     },
-    vaultPath: getTempVault().path
+    input: {
+      path,
+      shouldExist,
+      WAIT_TIMEOUT_IN_MILLISECONDS
+    },
+    vaultPath: getTemporaryVault().path
   });
 }
 
@@ -74,14 +72,7 @@ describe('External change detection', () => {
     await writeExternally(CREATED_NOTE_PATH, APPENDED_CONTENT);
 
     const content = await evalInObsidian({
-      // eslint-disable-next-line unicorn/name-replacements -- `args` is an `obsidian-integration-testing` parameter name.
-      args: {
-        APPENDED_CONTENT,
-        CREATED_NOTE_PATH,
-        WAIT_TIMEOUT_IN_MILLISECONDS
-      },
-      // eslint-disable-next-line unicorn/name-replacements -- `fn` is an `obsidian-integration-testing` parameter name.
-      async fn({
+      async callback({
         app,
         APPENDED_CONTENT: expectedContent,
         CREATED_NOTE_PATH: notePath,
@@ -103,7 +94,12 @@ describe('External change detection', () => {
         const file = app.vault.getFileByPath(notePath);
         return file ? await app.vault.read(file) : '';
       },
-      vaultPath: getTempVault().path
+      input: {
+        APPENDED_CONTENT,
+        CREATED_NOTE_PATH,
+        WAIT_TIMEOUT_IN_MILLISECONDS
+      },
+      vaultPath: getTemporaryVault().path
     });
 
     expect(content).toBe(APPENDED_CONTENT);
