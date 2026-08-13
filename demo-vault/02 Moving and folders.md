@@ -1,12 +1,10 @@
-[Docs](https://github.com/mnaoumov/obsidian-external-rename-handler/)
-
 # Moving and folders
 
 An external **move** is just a rename to a different path, so External Rename Handler handles it the same way - and it works for folders too, not only single files.
 
 ## Try moving a file
 
-1. Keep Obsidian open. Open [[References/Link A]] and [[References/Link B]] to watch them.
+1. Keep Obsidian open. Open [References/Link A](<./References/Link A.md>) and [References/Link B](<./References/Link B.md>) to watch them.
 2. In your OS file manager or terminal, move `Rename me externally.md` into the `References` folder on disk.
 3. Back in Obsidian, the links update to point at the file's new location.
 
@@ -25,4 +23,4 @@ mv "Rename me externally.md" "References/Rename me externally.md"
 - Files and folders whose names start with a dot (`.`) - such as `.obsidian` - are ignored.
 - Only items Obsidian already tracks are handled.
 
-See [[03 How it works]] for why these limits exist, and [[04 Settings]] to tune the detection.
+See [03 How it works](<./03 How it works.md>) for why these limits exist, and [04 Settings](<./04 Settings.md>) to tune the detection.

@@ -1,5 +1,3 @@
-[Docs](https://github.com/mnaoumov/obsidian-external-rename-handler/)
-
 # How it works
 
 Obsidian does not natively track renames that happen outside the app. When a file changes on disk behind its back, it only sees a **delete** of the old path and a **create** of the new one, with no idea the two are the same file - so links to the old path break.
@@ -19,9 +17,9 @@ External Rename Handler bridges that gap:
 
 ## Tuning
 
-Two of the [[04 Settings]] control the detection itself:
+Two of the [04 Settings](<./04 Settings.md>) control the detection itself:
 
 - `pollingIntervalInMilliseconds` - how often the safety-net poll runs.
 - `deletionRenameDetectionTimeoutInMilliseconds` - how long to wait before deciding a delete really was a delete and not the first half of a rename.
 
-See [[04 Settings]] for all of the options.
+See [04 Settings](<./04 Settings.md>) for all of the options.
