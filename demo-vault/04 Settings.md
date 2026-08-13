@@ -1,5 +1,3 @@
-[Docs](https://github.com/mnaoumov/obsidian-external-rename-handler/)
-
 # Settings
 
 Open **Settings -> Community plugins -> External Rename Handler** to configure the plugin. Each option below lists the setting key stored in the plugin's `data.json`.

@@ -1,3 +1,5 @@
+# External Rename Handler demo vault
+
 This is an [Obsidian](https://obsidian.md/) vault demonstrating features of the [External Rename Handler](https://github.com/mnaoumov/obsidian-external-rename-handler) plugin.
 
 ## Opening this vault
