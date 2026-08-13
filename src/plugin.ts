@@ -20,6 +20,7 @@ export class Plugin extends PluginBase {
         pluginEventSource: new PluginEventSourceImpl(this)
       })
     );
+    this.pluginSettingsComponent = pluginSettingsComponent;
 
     const pluginSettingsTab = new PluginSettingsTab({
       plugin: this,
