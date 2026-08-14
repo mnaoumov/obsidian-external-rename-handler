@@ -5,11 +5,13 @@
 [![GitHub downloads](https://img.shields.io/github/downloads/mnaoumov/obsidian-external-rename-handler/total)](https://github.com/mnaoumov/obsidian-external-rename-handler/releases)
 [![Coverage: 100%](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/mnaoumov/obsidian-external-rename-handler)
 
-This is a plugin for [Obsidian](https://obsidian.md/) that handles renames in the vault made outside of Obsidian app.
+Rename a note inside [Obsidian](https://obsidian.md/) and every link to it is updated. Rename the same
+file in your file manager, from a script, or through a sync client, and Obsidian sees a delete followed
+by a create — so the links are not updated, and every note that pointed at it is left pointing at
+nothing.
 
-By default, Obsidian does not handle renames made outside of the app. It treats them as pair of `create`/`delete` events.
-
-This plugin handles renames made outside of Obsidian app by treating them as a single `rename` event.
+This plugin recognizes those external renames for what they are and treats them as a single rename, so
+links survive a change made outside the app.
 
 > [!WARNING]
 >
@@ -25,11 +27,30 @@ This plugin handles renames made outside of Obsidian app by treating them as a s
 
 ## Demo vault
 
-A demo vault with usage examples ships with every release. You can access it via any of the following:
+**The documentation is a demo vault.** Every feature has a note that explains what it does and why you
+would want it, with a note ready to rename and backlinks ready to watch.
+
+**[Start reading here](<./demo-vault/00 Start.md>)** — it is plain markdown, so it works on GitHub with
+nothing installed.
+
+A copy of the vault ships with every release. You can access it via any of the following:
 
 1. Running the **External Rename Handler: Open demo vault** command.
 2. Downloading `external-rename-handler-demo-vault-<version>.zip` (`<version>` is the release version) from the [Releases](https://github.com/mnaoumov/obsidian-external-rename-handler/releases).
 3. Browsing its source in [`demo-vault/`](./demo-vault/README.md) in this repository.
+
+## What it does
+
+- **A rename made outside Obsidian updates links**, instead of arriving as an unrelated delete and
+  create.
+  [01 External renames](<./demo-vault/01 External renames.md>)
+- **Moving a file, and moving whole folders**, are handled the same way.
+  [02 Moving and folders](<./demo-vault/02 Moving and folders.md>)
+- **How the detection works**, and therefore where its limits are — worth reading before trusting it
+  with anything irreversible.
+  [03 How it works](<./demo-vault/03 How it works.md>)
+- **Every setting**, by the key it is stored under.
+  [04 Settings](<./demo-vault/04 Settings.md>)
 
 ## Installation
 
@@ -54,6 +75,14 @@ window.DEBUG.enable('external-rename-handler');
 ```
 
 For more details, refer to the [documentation](https://mnaoumov.dev/obsidian-dev-utils/guides/debugging/).
+
+## Changelog
+
+All notable changes to this project will be documented in the [CHANGELOG](./CHANGELOG.md).
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING](./CONTRIBUTING.md) to get set up.
 
 ## Support
 

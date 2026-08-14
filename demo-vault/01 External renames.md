@@ -7,7 +7,7 @@ This is the headline feature. When **Obsidian is running**, External Rename Hand
 You need something *outside* Obsidian to do the renaming - Obsidian must stay open the whole time.
 
 1. Keep this vault open in Obsidian.
-2. Open [References/Link A](<./References/Link A.md>) and [References/Link B](<./References/Link B.md>) so you can watch them. Both link to [Rename me externally](<./Rename me externally.md>).
+2. Open [References/Link A](<./Materials/01 External renames/References/Link A.md>) and [References/Link B](<./Materials/01 External renames/References/Link B.md>) so you can watch them. Both link to [Rename me externally](<./Materials/01 External renames/Rename me externally.md>).
 3. Switch to your operating system's file manager (Finder, File Explorer, etc.) or a terminal, and navigate to this vault's folder on disk.
 4. Rename `Rename me externally.md` to `Renamed externally.md` there - **not** inside Obsidian.
 5. Switch back to Obsidian. The plugin detects the external rename and Obsidian rewrites the links in `Link A` and `Link B` to point at `Renamed externally`.

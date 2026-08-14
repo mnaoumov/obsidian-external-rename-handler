@@ -19,7 +19,9 @@ External Rename Handler bridges that gap:
 
 Two of the [04 Settings](<./04 Settings.md>) control the detection itself:
 
-- `pollingIntervalInMilliseconds` - how often the safety-net poll runs.
-- `deletionRenameDetectionTimeoutInMilliseconds` - how long to wait before deciding a delete really was a delete and not the first half of a rename.
+- `pollingIntervalInMilliseconds`
+  - how often the safety-net poll runs.
+- `deletionRenameDetectionTimeoutInMilliseconds`
+  - how long to wait before deciding a delete really was a delete and not the first half of a rename.
 
 See [04 Settings](<./04 Settings.md>) for all of the options.
