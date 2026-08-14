@@ -4,7 +4,7 @@ An external **move** is just a rename to a different path, so External Rename Ha
 
 ## Try moving a file
 
-1. Keep Obsidian open. Open [References/Link A](<./References/Link A.md>) and [References/Link B](<./References/Link B.md>) to watch them.
+1. Keep Obsidian open. Open [References/Link A](<./Materials/01 External renames/References/Link A.md>) and [References/Link B](<./Materials/01 External renames/References/Link B.md>) to watch them.
 2. In your OS file manager or terminal, move `Rename me externally.md` into the `References` folder on disk.
 3. Back in Obsidian, the links update to point at the file's new location.
 
