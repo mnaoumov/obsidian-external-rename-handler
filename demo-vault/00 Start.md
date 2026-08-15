@@ -4,6 +4,10 @@ Welcome to the [External Rename Handler](https://github.com/mnaoumov/obsidian-ex
 
 **How to try it:** keep Obsidian open, then use your operating system's file manager or a terminal to rename [Rename me externally](<./Materials/01 External renames/Rename me externally.md>) to something else (for example `Renamed externally.md`). Watch the links in [References/Link A](<./Materials/01 External renames/References/Link A.md>) and [References/Link B](<./Materials/01 External renames/References/Link B.md>) follow the file to its new name. Full steps are in [01 External renames](<./01 External renames.md>).
 
+If you would rather not leave Obsidian, every walkthrough has a button that does the same thing through
+Node's `fs` - which is genuinely outside Obsidian's own API, so the plugin sees a real external rename -
+plus a reset button, since each attempt changes the vault.
+
 ## Feature
 
 - [01 External renames](<./01 External renames.md>)

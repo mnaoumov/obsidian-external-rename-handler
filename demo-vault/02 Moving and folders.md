@@ -12,10 +12,33 @@ An external **move** is just a rename to a different path, so External Rename Ha
 mv "Rename me externally.md" "References/Rename me externally.md"
 ```
 
+```code-button
+---
+caption: Move the note into References/ from outside Obsidian
+---
+await require('/demoSetup.ts').moveExternally(app);
+```
+
+```code-button
+---
+caption: Reset the demo notes
+---
+await require('/demoSetup.ts').resetDemo(app);
+```
+
 ## Try renaming a folder
 
 1. In your OS file manager or terminal, rename the `References` folder to something else, for example `Linked notes`.
 2. Back in Obsidian, links that pointed into that folder are updated to the new folder path.
+
+```code-button
+---
+caption: Rename the References folder from outside Obsidian
+---
+await require('/demoSetup.ts').renameFolderExternally(app);
+```
+
+Manual equivalent: rename that folder in your file manager. Reset afterwards with the button above.
 
 ## Caveats to keep in mind
 

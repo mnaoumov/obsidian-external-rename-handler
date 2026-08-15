@@ -11,3 +11,7 @@
 !.obsidian/plugins/external-rename-handler/
 .obsidian/plugins/external-rename-handler/*
 !.obsidian/plugins/external-rename-handler/data.json
+
+# Left behind by the external-rename demo buttons.
+Materials/01 External renames/Renamed externally.md
+Materials/01 External renames/Linked notes/
