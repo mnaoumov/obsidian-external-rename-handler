@@ -18,6 +18,24 @@ Using a terminal instead? From the vault folder:
 mv "Rename me externally.md" "Renamed externally.md"
 ```
 
+Or press the button - it renames the file through Node's `fs`, never through Obsidian's own API, which is exactly what your file manager does and what makes the rename *external*:
+
+```code-button
+---
+caption: Rename the note from outside Obsidian
+---
+await require('/demoSetup.ts').renameExternally(app);
+```
+
+```code-button
+---
+caption: Reset the demo notes
+---
+await require('/demoSetup.ts').resetDemo(app);
+```
+
+Manual equivalent of the reset: rename everything back by hand in your file manager.
+
 The same thing happens when the file is renamed by `git checkout`, a cloud-sync client, or a backup-restore tool - as long as Obsidian is running to observe it.
 
 > [!WARNING]
