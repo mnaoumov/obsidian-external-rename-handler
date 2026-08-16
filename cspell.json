@@ -25,7 +25,9 @@
     "Subwatcher",
     "subwatchers",
     "tsbuildinfo",
-    "tsex"
+    "tsex",
+    "unvalidated",
+    "wdio"
   ],
   "ignoreWords": [],
   "import": [],
