@@ -7,9 +7,7 @@ Open **Settings -> Community plugins -> External Rename Handler** to configure t
 - `shouldUpdateLinks`
   - whether to trigger a link update when a file is renamed externally. When enabled, links pointing at the old path are rewritten to the new one; when disabled, the rename is still recognized but links are left untouched.
 
-Worth seeing rather than reading: turn it off, rename the note from
-[01 External renames](<./01 External renames.md>), and watch the links stay pointing at the old name -
-the rename is still detected, only the rewriting is skipped.
+Worth seeing rather than reading: turn it off, rename the note from [01 External renames](<./01 External renames.md>), and watch the links stay pointing at the old name - the rename is still detected, only the rewriting is skipped.
 
 ```code-button
 ---
