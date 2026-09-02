@@ -10,14 +10,23 @@
  * the situation the plugin exists for, a rename Obsidian did not perform and
  * would otherwise see as a delete followed by a create.
  *
- * Both frames show the file explorer beside the linking note, because the story
- * needs both halves: the file got a new name, and the link followed it. Each
- * shot asserts the link text, so the pair cannot silently show the same note
- * twice.
+ * The subject is the RENAMED note itself, open in the editor, with the file
+ * explorer beside it — so both halves of the story are in frame: the name on
+ * disk changed, and the note the reader is looking at followed it rather than
+ * closing and coming back as a stranger. Each shot asserts the path the open
+ * leaf is on, so the pair cannot silently show the same frame twice.
+ *
+ * LINKS are deliberately out of frame. Since 4.0.0 this plugin reports the
+ * rename and Advanced Rename and Delete Handler rewrites the links, and this
+ * vault has only this plugin installed — so a link left pointing at the old name
+ * is correct here, and putting it on the store listing would say the opposite of
+ * what these frames are for.
  *
  * Desktop only — the manifest says `isDesktopOnly`, and renaming a file behind
  * Obsidian's back is a desktop situation.
  */
+
+import type { TAbstractFile } from 'obsidian';
 
 import {
   mkdirSync,
@@ -53,17 +62,24 @@ const NEW_TARGET_PATH = `${TARGET_FOLDER}/${NEW_NOTE_NAME}.md`;
 
 const IMAGES_DIRECTORY = join(process.cwd(), 'images', 'screenshots');
 
+interface FileExplorerLike {
+  revealInFolder(abstractFile: TAbstractFile): void;
+}
+
 beforeAll(async () => {
   const vault = getTemporaryVault();
 
   vault.populate({
-    [OLD_TARGET_PATH]: `# ${OLD_NOTE_NAME}\n\nThe note that is about to be renamed from outside.\n`,
+    // No heading: the NAME is the subject, and it is already on the tab, the
+    // Breadcrumb and the explorer row. An `# Chapter one` in the body would sit
+    // There unchanged after the rename and read as a contradiction.
+    [OLD_TARGET_PATH]: 'This note is open right now. In a moment its file will be renamed on disk, by something that is not Obsidian.\n',
     [SOURCE_NOTE_PATH]: `# Reading list\n\nStart with [[${OLD_NOTE_NAME}]], then keep going.\n`
   });
   await vault.syncToDevice();
 
   await evalInObsidian({
-    async callback({ app, lib: { waitUntil }, sourceNotePath }) {
+    async callback({ app, lib: { waitUntil }, oldTargetPath, sourceNotePath }) {
       const SETTLE_TIMEOUT_IN_MILLISECONDS = 30_000;
       const SETTLE_DELAY_IN_MILLISECONDS = 1000;
 
@@ -83,53 +99,82 @@ beforeAll(async () => {
         await app.workspace.revealLeaf(fileExplorerLeaf);
       }
 
-      app.vault.setConfig('showInlineTitle', false);
+      // The name is the whole subject of the second frame, and the folder holding
+      // It starts collapsed — so without this the explorer shows nothing but a
+      // Folder row and both frames look identical.
+      const targetFile = app.vault.getFileByPath(oldTargetPath);
+      const fileExplorer = app.internalPlugins.getEnabledPluginById('file-explorer') as FileExplorerLike | null;
+      if (fileExplorer && targetFile) {
+        fileExplorer.revealInFolder(targetFile);
+      }
+
+      // ON, deliberately: the file's name is the subject of both frames, and the
+      // Inline title puts it in the editor too rather than only on the tab.
+      app.vault.setConfig('showInlineTitle', true);
 
       await sleep(SETTLE_DELAY_IN_MILLISECONDS);
     },
-    input: { sourceNotePath: SOURCE_NOTE_PATH },
+    input: { oldTargetPath: OLD_TARGET_PATH, sourceNotePath: SOURCE_NOTE_PATH },
     vaultPath: vaultPath()
   });
 });
 
 describe('desktop store screenshots', () => {
-  it('1 - the link before anything is renamed', async () => {
-    const content = await openSourceNote();
-    expect(content).toContain(`[[${OLD_NOTE_NAME}]]`);
-    await shoot(1, `A note linking to ${OLD_NOTE_NAME}`);
+  it('1 - the note before anything is renamed', async () => {
+    const activePath = await openTargetNote();
+    expect(activePath).toBe(OLD_TARGET_PATH);
+    await shoot(1, `A note open in Obsidian, named ${OLD_NOTE_NAME}`);
   });
 
-  it('2 - the link after an external rename', async () => {
+  it('2 - the same note after an external rename', async () => {
     renameOnDiskOutsideObsidian();
-    const content = await waitForLinkToFollow();
-    expect(content).toContain(`[[${NEW_NOTE_NAME}]]`);
-    expect(content).not.toContain(`[[${OLD_NOTE_NAME}]]`);
-    await shoot(2, 'Renamed in your file manager — and the link followed it');
+    const activePath = await waitForRenameToBeNoticed();
+    expect(activePath).toBe(NEW_TARGET_PATH);
+    await shoot(2, 'Renamed in your file manager — the open note followed it');
   });
 });
 
 /**
- * Opens the linking note and returns its content.
+ * Clears the floating notices before a frame is taken.
  *
- * @returns The note's Markdown.
+ * Every shot wants the subject, not the plugin talking over it. The notice suggesting Advanced Rename and
+ * Delete Handler in particular is persistent — it carries buttons, so it waits for an answer rather than
+ * timing out — and it lands squarely over the file explorer these frames are about.
  */
-async function openSourceNote(): Promise<string> {
+async function dismissNotices(): Promise<void> {
+  await evalInObsidian({
+    callback() {
+      for (const noticeEl of document.querySelectorAll('.notice')) {
+        noticeEl.detach();
+      }
+    },
+    vaultPath: vaultPath()
+  });
+}
+
+/**
+ * Opens the note that is about to be renamed, and reports where the active leaf
+ * ended up.
+ *
+ * @returns The active file's path.
+ */
+async function openTargetNote(): Promise<string> {
   return await evalInObsidian({
-    async callback({ app, lib: { waitUntil }, sourceNotePath }) {
+    async callback({ app, lib: { waitUntil }, oldTargetPath }) {
       const RENDER_TIMEOUT_IN_MILLISECONDS = 20_000;
       const SETTLE_DELAY_IN_MILLISECONDS = 1200;
 
-      const file = app.vault.getFileByPath(sourceNotePath);
+      const file = app.vault.getFileByPath(oldTargetPath);
       if (!file) {
-        throw new Error(`Note is missing from the vault: ${sourceNotePath}`);
+        throw new Error(`Note is missing from the vault: ${oldTargetPath}`);
       }
 
       const leaf = app.workspace.getLeaf(false);
       await leaf.openFile(file);
-      // `source: true` forces RAW Markdown: the link TEXT is the subject, and
-      // Reading view would render it away.
+      // `source: true` forces RAW Markdown, so the frame shows the note as it is
+      // Stored rather than a rendered view of it.
       await leaf.setViewState({
-        state: { file: sourceNotePath, mode: 'source', source: true },
+        state: { file: oldTargetPath, mode: 'source', source: true },
         type: 'markdown'
       });
 
@@ -141,9 +186,9 @@ async function openSourceNote(): Promise<string> {
 
       await sleep(SETTLE_DELAY_IN_MILLISECONDS);
 
-      return await app.vault.read(file);
+      return app.workspace.getActiveFile()?.path ?? '';
     },
-    input: { sourceNotePath: SOURCE_NOTE_PATH },
+    input: { oldTargetPath: OLD_TARGET_PATH },
     vaultPath: vaultPath()
   });
 }
@@ -167,6 +212,8 @@ function renameOnDiskOutsideObsidian(): void {
  * @param caption - The caption drawn across the bottom of the frame.
  */
 async function shoot(index: number, caption: string): Promise<void> {
+  await dismissNotices();
+
   const bytes = await captureObsidianScreenshot({
     heightInPixels: HEIGHT_IN_PIXELS,
     vaultPath: vaultPath(),
@@ -189,41 +236,38 @@ function vaultPath(): string {
 }
 
 /**
- * Waits for the plugin to notice the external rename and rewrite the link.
+ * Waits for the plugin to notice the external rename, and reports where the open
+ * leaf ended up.
  *
- * @returns The linking note's content afterwards.
+ * The open leaf is the point: a delete followed by a create would leave the
+ * editor on a file that no longer exists, while a recognized rename carries it
+ * to the new path.
+ *
+ * @returns The active file's path afterwards.
  */
-async function waitForLinkToFollow(): Promise<string> {
+async function waitForRenameToBeNoticed(): Promise<string> {
   return await evalInObsidian({
-    async callback({ app, lib: { waitUntil }, newNoteName, sourceNotePath }) {
+    async callback({ app, lib: { waitUntil }, newTargetPath }) {
       const RENAME_TIMEOUT_IN_MILLISECONDS = 30_000;
       const SETTLE_DELAY_IN_MILLISECONDS = 1500;
       const RESIZE_SETTLE_DELAY_IN_MILLISECONDS = 2000;
 
       await sleep(RESIZE_SETTLE_DELAY_IN_MILLISECONDS);
 
-      const file = app.vault.getFileByPath(sourceNotePath);
-      if (!file) {
-        throw new Error(`Note is missing from the vault: ${sourceNotePath}`);
-      }
-
       // Obsidian has to notice the change on disk first, and the plugin has to
-      // Pair the delete with the create before it can rewrite anything, so this
+      // Pair the delete with the create before the vault moves the file, so this
       // Wait is longer than most.
       await waitUntil({
-        message: 'the link to follow the renamed file',
-        predicate: async () => {
-          const content = await app.vault.read(file);
-          return content.includes(newNoteName);
-        },
+        message: 'the open note to follow the renamed file',
+        predicate: () => app.workspace.getActiveFile()?.path === newTargetPath,
         timeoutInMilliseconds: RENAME_TIMEOUT_IN_MILLISECONDS
       });
 
       await sleep(SETTLE_DELAY_IN_MILLISECONDS);
 
-      return await app.vault.read(file);
+      return app.workspace.getActiveFile()?.path ?? '';
     },
-    input: { newNoteName: NEW_NOTE_NAME, sourceNotePath: SOURCE_NOTE_PATH },
+    input: { newTargetPath: NEW_TARGET_PATH },
     vaultPath: vaultPath()
   });
 }

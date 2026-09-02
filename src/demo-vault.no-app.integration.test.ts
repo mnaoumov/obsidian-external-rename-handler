@@ -14,7 +14,7 @@ registerDemoVaultCoverageSuite({
   interfaces: [],
   nonTrivialGuard: {
     expectDemoNote: '04 Settings.md',
-    expectMember: 'shouldUpdateLinks',
+    expectMember: 'pollingIntervalInMilliseconds',
     interfaceName: 'PluginSettings',
     sourcePath: 'src/plugin-settings.ts'
   },

@@ -1,6 +1,10 @@
 # External renames
 
-This is the headline feature. When **Obsidian is running**, External Rename Handler notices a file that was renamed outside of the app and treats it as a real **rename**, so Obsidian updates every link that pointed at the old name. Without the plugin, Obsidian would treat the same change as an unrelated delete + create and the links would break.
+This is the headline feature. When **Obsidian is running**, External Rename Handler notices a file that was renamed outside of the app and treats it as a real **rename**, so the file keeps its identity instead of arriving as an unrelated delete + create. Rewriting the links that pointed at the old name is then done by [Advanced Rename and Delete Handler](https://github.com/mnaoumov/obsidian-advanced-rename-and-delete-handler).
+
+## Before you start
+
+Install **Advanced Rename and Delete Handler** - the walkthrough below needs it. External Rename Handler offers it to you: click **Install** on the notice it shows, or on the banner at the top of **Settings -> Community plugins -> External Rename Handler**. Without it, the steps below still detect the rename, but `Link A` and `Link B` keep pointing at the old name.
 
 ## Try it
 
@@ -10,7 +14,7 @@ You need something *outside* Obsidian to do the renaming - Obsidian must stay op
 2. Open [References/Link A](<./Materials/01 External renames/References/Link A.md>) and [References/Link B](<./Materials/01 External renames/References/Link B.md>) so you can watch them. Both link to [Rename me externally](<./Materials/01 External renames/Rename me externally.md>).
 3. Switch to your operating system's file manager (Finder, File Explorer, etc.) or a terminal, and navigate to this vault's folder on disk.
 4. Rename `Rename me externally.md` to `Renamed externally.md` there - **not** inside Obsidian.
-5. Switch back to Obsidian. The plugin detects the external rename and Obsidian rewrites the links in `Link A` and `Link B` to point at `Renamed externally`.
+5. Switch back to Obsidian. External Rename Handler detects the external rename, and Advanced Rename and Delete Handler rewrites the links in `Link A` and `Link B` to point at `Renamed externally`.
 
 Using a terminal instead? From the vault folder:
 
