@@ -4,7 +4,7 @@
 
 Rename a note inside [Obsidian](https://obsidian.md/) and every link to it is updated. Rename the same file in your file manager, from a script, or through a sync client, and Obsidian sees a delete followed by a create — so the links are not updated, and every note that pointed at it is left pointing at nothing.
 
-This plugin recognizes those external renames for what they are and treats them as a single rename, so links survive a change made outside the app.
+This plugin recognizes those external renames for what they are and reports them to Obsidian as a single rename, so the file keeps its identity instead of arriving as a stranger. Rewriting the links that pointed at the old name is then done by [Advanced Rename and Delete Handler](https://github.com/mnaoumov/obsidian-advanced-rename-and-delete-handler) — see [Renames](#renames) below.
 
 > [!WARNING]
 >
@@ -20,12 +20,12 @@ This plugin recognizes those external renames for what they are and treats them 
 
 <!-- markdownlint-disable MD033 -->
 
-<a href="https://github.com/mnaoumov/obsidian-external-rename-handler/blob/HEAD/images/screenshots/screenshot-desktop-1.png"><img src="images/screenshots/screenshot-desktop-1.png" alt="A note linking to Chapter one" width="600"></a>
+<a href="https://github.com/mnaoumov/obsidian-external-rename-handler/blob/HEAD/images/screenshots/screenshot-desktop-1.png"><img src="images/screenshots/screenshot-desktop-1.png" alt="A note open in Obsidian, named Chapter one" width="600"></a>
 
 <details>
 <summary>More screenshots</summary>
 
-<a href="https://github.com/mnaoumov/obsidian-external-rename-handler/blob/HEAD/images/screenshots/screenshot-desktop-2.png"><img src="images/screenshots/screenshot-desktop-2.png" alt="Renamed in your file manager — and the link followed it" width="600"></a>
+<a href="https://github.com/mnaoumov/obsidian-external-rename-handler/blob/HEAD/images/screenshots/screenshot-desktop-2.png"><img src="images/screenshots/screenshot-desktop-2.png" alt="Renamed in your file manager — the open note followed it" width="600"></a>
 
 </details>
 
@@ -45,10 +45,16 @@ A copy of the vault ships with every release. You can access it via any of the f
 
 ## What it does
 
-- **A rename made outside Obsidian updates links**, instead of arriving as an unrelated delete and create. [01 External renames](<./demo-vault/01 External renames.md>)
+- **A rename made outside Obsidian is recognized as a rename**, instead of arriving as an unrelated delete and create. [01 External renames](<./demo-vault/01 External renames.md>)
 - **Moving a file, and moving whole folders**, are handled the same way. [02 Moving and folders](<./demo-vault/02 Moving and folders.md>)
 - **How the detection works**, and therefore where its limits are — worth reading before trusting it with anything irreversible. [03 How it works](<./demo-vault/03 How it works.md>)
 - **Every setting**, by the key it is stored under. [04 Settings](<./demo-vault/04 Settings.md>)
+
+## Renames
+
+Up to version 3 this plugin rewrote the links itself, through a copy of a rename/delete handler that four other plugins also bundled — so which copy actually ran depended on Obsidian's load order. Since **4.0.0** it does not, and rename and delete handling belongs to [Advanced Rename and Delete Handler](https://github.com/mnaoumov/obsidian-advanced-rename-and-delete-handler) instead — one plugin owning it for the whole vault.
+
+The two are meant to be used together: this plugin sees the rename your file manager made, that one updates the notes pointing at the old name. This plugin offers to install it, once, and carries your old `Should update links` value over for you to approve. Decline, and external renames are still detected — the file keeps its identity, its open tab and the file explorer follow it — but the links are left as they were.
 
 ## Installation
 

@@ -112,8 +112,7 @@ const hoisted = vi.hoisted(() => {
     pathInoMapStub,
     settings: {
       deletionRenameDetectionTimeoutInMilliseconds: 500,
-      pollingIntervalInMilliseconds: 2000,
-      shouldUpdateLinks: true
+      pollingIntervalInMilliseconds: 2000
     },
     stat: vi.fn((): Promise<Pick<Stats, 'ino'>> => Promise.resolve({ ino: ROOT_INO }))
   };
@@ -301,7 +300,6 @@ describe('ExternalRenameHandlerComponent', () => {
     hoisted.stat.mockResolvedValue({ ino: ROOT_INO });
     hoisted.settings.deletionRenameDetectionTimeoutInMilliseconds = 500;
     hoisted.settings.pollingIntervalInMilliseconds = 2000;
-    hoisted.settings.shouldUpdateLinks = true;
     capturedLayoutReadyCallback = undefined;
     loadedFiles = [];
     app = createApp();

@@ -11,6 +11,15 @@ describe('PluginSettings', () => {
     const settings = new PluginSettings();
     expect(settings.deletionRenameDetectionTimeoutInMilliseconds).toBe(500);
     expect(settings.pollingIntervalInMilliseconds).toBe(2000);
-    expect(settings.shouldUpdateLinks).toBe(true);
+  });
+
+  it('should default isAdvancedRenameAndDeleteHandlerSuggestionDeclined to false', () => {
+    const settings = new PluginSettings();
+    expect(settings.isAdvancedRenameAndDeleteHandlerSuggestionDeclined).toBe(false);
+  });
+
+  it('should default proposedShouldHandleRenames to null', () => {
+    const settings = new PluginSettings();
+    expect(settings.proposedShouldHandleRenames).toBeNull();
   });
 });

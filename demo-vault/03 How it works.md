@@ -5,8 +5,10 @@ Obsidian does not natively track renames that happen outside the app. When a fil
 External Rename Handler bridges that gap:
 
 - While Obsidian is running, it watches the vault folder on disk for file-system changes.
-- It keeps a map from each tracked file to its underlying inode (the OS's stable identifier for the file's contents). When a delete and a create share the same inode, it knows the file was **renamed**, not replaced, and reports a single `rename` event so Obsidian updates the links.
+- It keeps a map from each tracked file to its underlying inode (the OS's stable identifier for the file's contents). When a delete and a create share the same inode, it knows the file was **renamed**, not replaced, and reports a single `rename` event, so the file keeps its identity.
 - It also **polls** the file system on an interval as a safety net, to catch changes the event stream misses.
+
+That `rename` event is where this plugin's job ends. Obsidian only rewrites links when *it* performs the rename, so something has to act on the event - and since **4.0.0** that something is [Advanced Rename and Delete Handler](https://github.com/mnaoumov/obsidian-advanced-rename-and-delete-handler), which owns rename and delete handling for the whole vault rather than a copy of it living inside each plugin that happened to need one. Without it installed, an external rename is still detected and the file keeps its identity, but the notes pointing at the old name are left as they were.
 
 ## Limitations (be honest with yourself)
 
