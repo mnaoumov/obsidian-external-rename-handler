@@ -1,4 +1,3 @@
-// eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
 import type { Stats } from 'node:fs';
 import type {
   App as AppOriginal,
