@@ -28,13 +28,7 @@ interface ComponentModuleActual {
 }
 
 interface PluginsLike {
-  enabledPlugins: Set<string>;
-  getPlugin: ReturnType<typeof vi.fn>;
   manifests: Record<string, unknown>;
-}
-
-interface PluginsMock {
-  plugins: PluginsLike;
 }
 
 interface PluginSuggestionComponentParams {
@@ -132,13 +126,10 @@ function createApp(adapterOverride?: object): AppOriginal {
   appMock.workspace.onLayoutReady = vi.fn((callback: () => void) => {
     callback();
   });
-  // The strict App mock throws on an unmocked member, so `plugins` is assigned wholesale before use. The
-  // Suggestion component reads the registry on layout-ready to decide whether there is anything to suggest.
-  castTo<PluginsMock>(appMock).plugins = {
-    enabledPlugins: new Set<string>(),
-    getPlugin: vi.fn().mockReturnValue(null),
-    manifests: {}
-  };
+  // The suggestion component reads the registry on layout-ready to decide whether there is anything to
+  // Suggest. obsidian-test-mocks models `getPlugin` and `enabledPlugins`, but leaves `manifests` to throw,
+  // So only that one is seeded - on the real registry rather than replacing it.
+  castTo<PluginsLike>(appMock.plugins).manifests = {};
   const newApp = appMock.asOriginalType__();
 
   castTo<AppGlobal>(window).app = newApp;
