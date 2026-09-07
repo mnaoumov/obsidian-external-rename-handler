@@ -40,7 +40,7 @@ This plugin recognizes those external renames for what they are and reports them
 A copy of the vault ships with every release. You can access it via any of the following:
 
 1. Running the **External Rename Handler: Open demo vault** command.
-2. Downloading `external-rename-handler-demo-vault-<version>.zip` (`<version>` is the release version) from the [Releases](https://github.com/mnaoumov/obsidian-external-rename-handler/releases).
+2. Downloading `external-rename-handler-demo-vault.zip` from the [Releases](https://github.com/mnaoumov/obsidian-external-rename-handler/releases). It unzips into a single `external-rename-handler-demo-vault-<version>` folder.
 3. Browsing its source in [`demo-vault/`](./demo-vault/README.md) in this repository.
 
 ## What it does
