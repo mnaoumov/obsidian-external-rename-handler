@@ -136,6 +136,23 @@ const manifest = castTo<PluginManifest>({
 
 let app: AppOriginal;
 
+// Flattens an error and everything nested inside it — `AggregateError.errors` and `cause` alike — into the
+// Messages it carries, so an assertion can name the message it cares about without also encoding how many
+// Layers of aggregation happen to sit above it today. Returns `[]` for a non-error, which is what makes a
+// Rejection that never happened fail the assertion rather than pass it vacuously.
+function collectErrorMessages(error: unknown): string[] {
+  if (!(error instanceof Error)) {
+    return [];
+  }
+
+  const nested = error instanceof AggregateError ? error.errors : [];
+  return [
+    error.message,
+    ...nested.flatMap((nestedError: unknown) => collectErrorMessages(nestedError)),
+    ...collectErrorMessages(error.cause)
+  ];
+}
+
 function createAdapter(): object {
   const adapter = { onFileChange: vi.fn() };
   // The source checks `app.vault.adapter instanceof FileSystemAdapter` (the real obsidian API class, aliased to test-mocks).
@@ -235,10 +252,21 @@ describe('Plugin', () => {
       );
     });
 
+    // The throw still rejects `onload()`, so Obsidian still marks the plugin failed. What changed in
+    // Obsidian-dev-utils 101.7.0 is its SHAPE: the plugin now loads in two tiers, so a throw from
+    // `onloadImpl` travels up through both wrappers' `loadWithPromises()` and arrives wrapped in two
+    // Nested `AggregateError`s, each with an empty message of its own. Asserting on the top-level message
+    // Therefore matches nothing at all — the message is two levels down, and the assertion has to go
+    // Looking for it.
     it('should throw when the vault adapter is not a FileSystemAdapter', async () => {
       app = createApp({});
       const plugin = new Plugin(app, manifest);
-      await expect(plugin.onload()).rejects.toThrow('Vault adapter is not a FileSystemAdapter');
+
+      const error: unknown = await plugin.onload()
+        .then((): unknown => null)
+        .catch((error_: unknown): unknown => error_);
+
+      expect(collectErrorMessages(error)).toContain('Vault adapter is not a FileSystemAdapter');
     });
 
     // Advanced Rename and Delete Handler owns rename/delete handling since 4.0.0. Two handlers acting on one
