@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 4.0.1
+
+- test: assert the load failure wherever the tiered loader now puts it
+- chore: bring the lockfile up to the obsidian-dev-utils floor it now declares
+- refactor: replace the hand-rolled settings-migration copy with the shared component
+- docs: say where the debug command is run
+- test: bring the in-closure wait ceiling under the transport's per-eval cap
+- docs: name the unversioned demo-vault asset and the folder it unzips into
+- chore: make the LICENSE copyright line lintable and guard it against the year roll-over
+- fix(deps): move onto obsidian-dev-utils 101, and stop replacing the plugin registry
+
 ## 4.0.0
 
 - feat!: hand rename and delete handling to Advanced Rename and Delete Handler
