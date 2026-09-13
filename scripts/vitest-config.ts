@@ -4,7 +4,7 @@ import type { TestProjectConfiguration } from 'vitest/config';
 import { defineObsidianPluginVitestConfig } from 'obsidian-dev-utils/script-utils/test-runners/vitest-config';
 
 /**
- * The screenshot-capture suites (T461-P21) that write
+ * The screenshot-capture suites that write
  * `images/screenshots/screenshot-*.png`.
  *
  * There is no android suite: the manifest marks this plugin desktop-only. Named
