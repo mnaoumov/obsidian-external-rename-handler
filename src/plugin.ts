@@ -13,7 +13,7 @@ import {
   ADVANCED_RENAME_AND_DELETE_HANDLER_PLUGIN_ID,
   ADVANCED_RENAME_AND_DELETE_HANDLER_PLUGIN_NAME
 } from './advanced-rename-and-delete-handler.ts';
-import { ExternalRenameHandlerComponent } from './external-rename-handler-component.ts';
+import { ExternalRenameHandlerComponent } from './desktop-external-rename-handler-component.ts';
 import { PluginSettingsComponent } from './plugin-settings-component.ts';
 import { PluginSettingsTab } from './plugin-settings-tab.ts';
 

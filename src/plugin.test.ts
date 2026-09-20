@@ -53,7 +53,7 @@ interface SettingTabsHolder {
 
 // --- Allowed mocks: the plugin's OWN sibling modules ---
 
-vi.mock('./external-rename-handler-component.ts', async () => {
+vi.mock('./desktop-external-rename-handler-component.ts', async () => {
   // The real addChild eagerly LOADS this child, so it must extend the real (test-mocks) Component.
   const { Component } = await vi.importActual<ComponentModuleActual>('obsidian');
   class ExternalRenameHandlerComponent extends Component {}

@@ -153,7 +153,7 @@ vi.mock('./path-ino-map.ts', () => ({
 }));
 
 // eslint-disable-next-line import-x/first, import-x/imports-first -- vi.mock must precede the import of the module under test.
-import { ExternalRenameHandlerComponent } from './external-rename-handler-component.ts';
+import { ExternalRenameHandlerComponent } from './desktop-external-rename-handler-component.ts';
 
 let app: AppOriginal;
 let adapter: TestAdapter;
