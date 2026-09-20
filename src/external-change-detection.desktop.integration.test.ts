@@ -13,8 +13,14 @@ import {
   it
 } from 'vitest';
 
-// The default polling interval is 2000 ms, so every external change needs at least one poll to be noticed.
-const WAIT_TIMEOUT_IN_MILLISECONDS = 30_000;
+/*
+ * Under the transport's ~30s per-closure cap, not at it. Every closure in this file spends its whole
+ * budget on this one ceiling, so at 30_000 the ceiling was unreachable: the eval is killed at the cap
+ * first and reported as a bare transport timeout naming the harness rather than the wait that overran.
+ * What is waited on is the vault noticing an external change, which takes one poll of the default
+ * 2000 ms interval — so what is left is still a tenfold margin for a cold machine.
+ */
+const WAIT_TIMEOUT_IN_MILLISECONDS = 20_000;
 
 const CREATED_NOTE_PATH = 'external-change-detection-created.md';
 const RENAMED_NOTE_PATH = 'external-change-detection-renamed.md';
