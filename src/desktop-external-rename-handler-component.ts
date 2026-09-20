@@ -9,9 +9,7 @@ import type { PluginNoticeComponent } from 'obsidian-dev-utils/obsidian/componen
 
 import { getDataAdapterEx } from '@obsidian-typings/obsidian-public-latest/implementations';
 import { watch } from 'chokidar';
-// eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
 import { Stats } from 'node:fs';
-// eslint-disable-next-line import-x/no-nodejs-modules -- It's a desktop-only plugin.
 import { stat } from 'node:fs/promises';
 import { convertAsyncToSync } from 'obsidian-dev-utils/async';
 import { printError } from 'obsidian-dev-utils/error';
