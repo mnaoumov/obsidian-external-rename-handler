@@ -72,7 +72,12 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
   }
 
   protected override async onLayoutReady(): Promise<void> {
-    this.pathInoMap = new PathInoMap();
+    // A reload of this component registers a second `onLayoutReady` callback, so this method can run again over a map
+    // That already owns an open IndexedDB connection and an armed debounced flush. Dispose the outgoing one before
+    // Replacing it, and hand the incoming one to the component's own teardown, or the orphan keeps its connection open
+    // And fires its flush into a database nobody owns any more.
+    this.pathInoMap[Symbol.dispose]();
+    this.pathInoMap = this.registerDisposable(new PathInoMap());
     await this.pathInoMap.init(this.app);
     const rootIno = this.pathInoMap.getIno('/');
     const rootStats = await stat(this.fileSystemAdapter.basePath);

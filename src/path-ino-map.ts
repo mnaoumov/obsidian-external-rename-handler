@@ -1,6 +1,7 @@
 import type { App } from 'obsidian';
 
 import { debounce } from 'obsidian';
+import { printError } from 'obsidian-dev-utils/error';
 import { TwoWayMap } from 'obsidian-dev-utils/two-way-map';
 
 const STORE_NAME = 'path-ino';
@@ -18,10 +19,12 @@ interface PathInoMapSetParams {
 const DB_VERSION = 1;
 const PROCESS_STORE_ACTIONS_DEBOUNCE_INTERVAL_IN_MILLISECONDS = 5000;
 
-export class PathInoMap {
+export class PathInoMap implements Disposable {
   private _database?: IDBDatabase;
 
-  private pendingStoreActions: ((store: IDBObjectStore) => void)[] = [];
+  private isDisposed = false;
+
+  private readonly pendingStoreActions: ((store: IDBObjectStore) => void)[] = [];
 
   private readonly processStoreActionsDebounced = debounce(() => {
     this.processStoreActions();
@@ -59,7 +62,11 @@ export class PathInoMap {
   }
 
   public async init(app: App): Promise<void> {
-    const request = activeWindow.indexedDB.open(`${app.appId}/external-rename-handler`, DB_VERSION);
+    // `window`, never `activeWindow`: the store is keyed by `app.appId`, so it belongs to the vault rather than to
+    // Whichever window happened to have focus when the layout became ready. Opening it on a focused popout binds the
+    // Connection to that popout, and closing the popout then closes the connection under a plugin that is still
+    // Loaded and still queueing writes.
+    const request = window.indexedDB.open(`${app.appId}/external-rename-handler`, DB_VERSION);
     request.addEventListener('upgradeneeded', (event) => {
       if (event.newVersion !== 1) {
         return;
@@ -95,21 +102,54 @@ export class PathInoMap {
     });
   }
 
+  /**
+   * Tears the map down: cancels the debounced flush, writes whatever is still queued while the connection is alive,
+   * Then closes the connection.
+   *
+   * Idempotent, as `ComponentEx.registerDisposable` requires, because the owning component disposes the map it
+   * Replaces on a second layout-ready and the registration disposes it again on unload.
+   */
+  public [Symbol.dispose](): void {
+    if (this.isDisposed) {
+      return;
+    }
+
+    this.processStoreActionsDebounced.cancel();
+    this.processStoreActions();
+    this.isDisposed = true;
+    this._database?.close();
+  }
+
   private addStoreAction(storeAction: (store: IDBObjectStore) => void): void {
+    if (this.isDisposed) {
+      return;
+    }
+
     this.pendingStoreActions.push(storeAction);
     this.processStoreActionsDebounced();
   }
 
   private processStoreActions(): void {
-    const pendingStoreActions = this.pendingStoreActions;
-    this.pendingStoreActions = [];
-
-    const transaction = this.database.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    for (const action of pendingStoreActions) {
-      action(store);
+    if (this.pendingStoreActions.length === 0) {
+      return;
     }
-    transaction.commit();
+
+    try {
+      const transaction = this.database.transaction(STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const flushedStoreActionCount = this.pendingStoreActions.length;
+      for (const storeAction of this.pendingStoreActions.slice(0, flushedStoreActionCount)) {
+        storeAction(store);
+      }
+      transaction.commit();
+
+      // Dropped only once the transaction has been accepted. Swapping the queue out first — as this method used to —
+      // Is what made a failed flush silent: the in-memory map and the store then disagree, and the divergence
+      // Survives to the next start.
+      this.pendingStoreActions.splice(0, flushedStoreActionCount);
+    } catch (error) {
+      printError(new Error('Could not persist the pending path-ino store actions. They stay queued for the next flush.', { cause: error }));
+    }
   }
 }
 

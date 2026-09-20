@@ -58,13 +58,14 @@ describe('PathInoMap', () => {
       expect(map.getPaths()).toEqual([]);
     });
 
-    it('should throw when processStoreActions runs before init', () => {
+    it('should not throw out of the debounced flush when it runs before init', () => {
       vi.useFakeTimers();
       const map = new PathInoMap();
       map.set({ ino: 1, path: '/test.md' });
+      // The throw used to escape the debounce as an uncaught error. It is reported through the real `printError` now.
       expect(() => {
         vi.advanceTimersByTime(DEBOUNCE_MS);
-      }).toThrow('database is not initialized');
+      }).not.toThrow();
     });
   });
 
@@ -159,6 +160,99 @@ describe('PathInoMap', () => {
       await map2.init(app);
       expect(map2.getIno('/existing.md')).toBe(42);
       expect(map2.getPath(42)).toBe('/existing.md');
+    });
+  });
+
+  describe('dispose', () => {
+    it('should keep a failed flush queued and write it once a connection exists', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const app = createUniqueApp();
+
+      const map = new PathInoMap();
+      map.set({ ino: 1, path: '/queued-before-init.md' });
+      // The flush fails - there is no connection yet - and must NOT discard the action.
+      vi.advanceTimersByTime(DEBOUNCE_MS);
+
+      await map.init(app);
+      map[Symbol.dispose]();
+
+      vi.useRealTimers();
+
+      const reopened = new PathInoMap();
+      await reopened.init(app);
+      expect(reopened.getIno('/queued-before-init.md')).toBe(1);
+      reopened[Symbol.dispose]();
+    });
+
+    it('should flush the pending actions instead of letting the debounce fire after teardown', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const app = createUniqueApp();
+
+      const map = new PathInoMap();
+      await map.init(app);
+      map.set({ ino: 7, path: '/pending.md' });
+      map[Symbol.dispose]();
+
+      // The debouncer is cancelled, so nothing fires into the closed connection.
+      expect(() => {
+        vi.advanceTimersByTime(DEBOUNCE_MS);
+      }).not.toThrow();
+
+      vi.useRealTimers();
+
+      const reopened = new PathInoMap();
+      await reopened.init(app);
+      expect(reopened.getIno('/pending.md')).toBe(7);
+      reopened[Symbol.dispose]();
+    });
+
+    it('should be idempotent and inert once disposed', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const app = createUniqueApp();
+
+      const map = new PathInoMap();
+      await map.init(app);
+      map[Symbol.dispose]();
+      map[Symbol.dispose]();
+
+      // A store action arriving after teardown is dropped rather than queued against a closed connection.
+      map.set({ ino: 9, path: '/after-dispose.md' });
+      expect(() => {
+        vi.advanceTimersByTime(DEBOUNCE_MS);
+      }).not.toThrow();
+
+      vi.useRealTimers();
+
+      const reopened = new PathInoMap();
+      await reopened.init(app);
+      expect(reopened.getIno('/after-dispose.md')).toBeUndefined();
+      reopened[Symbol.dispose]();
+    });
+  });
+
+  describe('window binding', () => {
+    it('should open the database on the main window, not on the focused one', async () => {
+      const originalActiveWindow = activeWindow;
+      const popoutOpenSpy = vi.fn();
+      Object.defineProperty(window, 'activeWindow', {
+        configurable: true,
+        value: { indexedDB: { open: popoutOpenSpy } }
+      });
+
+      try {
+        const mainWindowOpenSpy = vi.spyOn(window.indexedDB, 'open');
+        const map = new PathInoMap();
+        await map.init(createUniqueApp());
+        map[Symbol.dispose]();
+
+        expect(mainWindowOpenSpy).toHaveBeenCalledOnce();
+        expect(popoutOpenSpy).not.toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(window, 'activeWindow', {
+          configurable: true,
+          value: originalActiveWindow
+        });
+      }
     });
   });
 

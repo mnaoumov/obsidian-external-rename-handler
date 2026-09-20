@@ -51,6 +51,7 @@ interface FileEntry {
 }
 
 interface PathInoMapStub {
+  [Symbol.dispose]: Mock<() => void>;
   clear: Mock<() => void>;
   deletePath: Mock<(path: string) => void>;
   getIno: Mock<(path: string) => number | undefined>;
@@ -102,7 +103,8 @@ const hoisted = vi.hoisted(() => {
     getPath: vi.fn((): string | undefined => undefined),
     getPaths: vi.fn((): string[] => []),
     init: vi.fn((): Promise<void> => noopAsync()),
-    set: vi.fn()
+    set: vi.fn(),
+    [Symbol.dispose]: vi.fn()
   };
 
   return {
@@ -149,6 +151,7 @@ vi.mock('./path-ino-map.ts', () => ({
     public getPaths = hoisted.pathInoMapStub.getPaths;
     public init = hoisted.pathInoMapStub.init;
     public set = hoisted.pathInoMapStub.set;
+    public [Symbol.dispose] = hoisted.pathInoMapStub[Symbol.dispose];
   }
 }));
 
@@ -322,6 +325,28 @@ describe('ExternalRenameHandlerComponent', () => {
     it('should initialize the path/ino map', async () => {
       await createReadyComponent();
       expect(hoisted.pathInoMapStub.init).toHaveBeenCalled();
+    });
+
+    it('should dispose the outgoing map before replacing it on a second layout ready', async () => {
+      await createReadyComponent();
+      // The first run disposes the field-initialized map it replaces.
+      expect(hoisted.pathInoMapStub[Symbol.dispose]).toHaveBeenCalledTimes(1);
+
+      await triggerLayoutReady();
+
+      // The second run disposes the map the first run opened, so no orphan keeps its connection open with its
+      // Debounced flush armed.
+      expect(hoisted.pathInoMapStub[Symbol.dispose]).toHaveBeenCalledTimes(2);
+      expect(hoisted.pathInoMapStub.init).toHaveBeenCalledTimes(2);
+    });
+
+    it('should dispose the path/ino map when the component unloads', async () => {
+      const component = await createReadyComponent();
+      expect(hoisted.pathInoMapStub[Symbol.dispose]).toHaveBeenCalledTimes(1);
+
+      component.unload();
+
+      expect(hoisted.pathInoMapStub[Symbol.dispose]).toHaveBeenCalledTimes(2);
     });
 
     it('should clear the map when the root ino does not match', async () => {
