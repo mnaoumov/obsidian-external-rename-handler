@@ -63,7 +63,7 @@ const NEW_TARGET_PATH = `${TARGET_FOLDER}/${NEW_NOTE_NAME}.md`;
 const IMAGES_DIRECTORY = join(process.cwd(), 'images', 'screenshots');
 
 interface FileExplorerLike {
-  revealInFolder(abstractFile: TAbstractFile): void;
+  revealInFolder: (abstractFile: TAbstractFile) => void;
 }
 
 beforeAll(async () => {

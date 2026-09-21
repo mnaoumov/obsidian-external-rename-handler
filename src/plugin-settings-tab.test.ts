@@ -34,7 +34,7 @@ interface SearchableDefinition {
 }
 
 interface VisibleDefinition {
-  visible(): boolean;
+  visible: () => boolean;
 }
 
 let getSuggestedPluginState: ReturnType<typeof vi.fn<() => SuggestedPluginState>>;
