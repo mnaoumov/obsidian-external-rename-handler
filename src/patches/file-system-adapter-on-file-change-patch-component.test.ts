@@ -12,7 +12,7 @@ import {
 import { FileSystemAdapterOnFileChangePatchComponent } from './file-system-adapter-on-file-change-patch-component.ts';
 
 interface PatchedAdapter {
-  onFileChange(path: null | string): void;
+  onFileChange: (path: null | string) => void;
 }
 
 function createAdapter(spy: Mock<(path: null | string) => void>): FileSystemAdapter {

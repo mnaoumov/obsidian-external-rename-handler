@@ -34,12 +34,12 @@ interface AppGlobal {
 }
 
 interface AsyncEventSource {
-  offref(eventRef: unknown): void;
+  offref: (eventRef: unknown) => void;
 }
 
 interface ComponentPrivate {
-  onLayoutReady(): Promise<void>;
-  originalOnFileChange(path: null | string): void;
+  onLayoutReady: () => Promise<void>;
+  originalOnFileChange: (path: null | string) => void;
 }
 
 interface EventRef {
@@ -69,14 +69,14 @@ interface SetParams {
 interface TestAdapter {
   basePath: string;
   files: Record<string, FileEntry>;
-  getFullRealPath(path: string): string;
-  getRealPath(path: string): string;
-  onFileChange(path: null | string): void;
+  getFullRealPath: (path: string) => string;
+  getRealPath: (path: string) => string;
+  onFileChange: (path: null | string) => void;
 }
 
 interface WatcherMock {
-  close(): Promise<void>;
-  on(event: string, handler: (...$arguments: unknown[]) => void): WatcherMock;
+  close: () => Promise<void>;
+  on: (event: string, handler: (...$arguments: unknown[]) => void) => WatcherMock;
 }
 
 type WatcherOnCalls = [string, (...$arguments: unknown[]) => void][];
@@ -90,7 +90,7 @@ interface WatcherOnMockData {
 }
 
 interface WatchOptions {
-  ignored(path: string): boolean;
+  readonly ignored: (path: string) => boolean;
 }
 
 // --- Hoisted shared state ---
