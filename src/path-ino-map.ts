@@ -63,9 +63,9 @@ export class PathInoMap implements Disposable {
 
   public async init(app: App): Promise<void> {
     // `window`, never `activeWindow`: the store is keyed by `app.appId`, so it belongs to the vault rather than to
-    // Whichever window happened to have focus when the layout became ready. Opening it on a focused popout binds the
-    // Connection to that popout, and closing the popout then closes the connection under a plugin that is still
-    // Loaded and still queueing writes.
+    // whichever window happened to have focus when the layout became ready. Opening it on a focused popout binds the
+    // connection to that popout, and closing the popout then closes the connection under a plugin that is still
+    // loaded and still queueing writes.
     const request = window.indexedDB.open(`${app.appId}/external-rename-handler`, DB_VERSION);
     request.addEventListener('upgradeneeded', (event) => {
       if (event.newVersion !== 1) {
@@ -144,8 +144,8 @@ export class PathInoMap implements Disposable {
       transaction.commit();
 
       // Dropped only once the transaction has been accepted. Swapping the queue out first — as this method used to —
-      // Is what made a failed flush silent: the in-memory map and the store then disagree, and the divergence
-      // Survives to the next start.
+      // is what made a failed flush silent: the in-memory map and the store then disagree, and the divergence
+      // survives to the next start.
       this.pendingStoreActions.splice(0, flushedStoreActionCount);
     } catch (error) {
       printError(new Error('Could not persist the pending path-ino store actions. They stay queued for the next flush.', { cause: error }));

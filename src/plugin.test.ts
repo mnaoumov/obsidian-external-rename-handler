@@ -80,16 +80,16 @@ vi.mock('./plugin-settings-tab.ts', () => ({
 }));
 
 // Capture the `PluginSuggestionComponent` constructor argument so the closures the plugin hands it — the
-// Declined-flag getter and setter — can be invoked directly. The stub returns a fresh real `Component` so
-// The real `PluginBase` lifecycle can load it as a child without reaching the community-plugin registry.
+// declined-flag getter and setter — can be invoked directly. The stub returns a fresh real `Component` so
+// the real `PluginBase` lifecycle can load it as a child without reaching the community-plugin registry.
 const { pluginSuggestionStub } = vi.hoisted(() => ({
   pluginSuggestionStub: vi.fn<(params: PluginSuggestionComponentParams) => object>()
 }));
 
 // The same treatment for the dev-utils settings-migration component. What is this plugin's own is the pair
-// Of closures it hands over — which pending value is offered, and how the retirement is persisted — so they
-// Are captured and invoked directly. The offer-and-retire dance around them belongs to dev-utils and is
-// Tested there.
+// of closures it hands over — which pending value is offered, and how the retirement is persisted — so they
+// are captured and invoked directly. The offer-and-retire dance around them belongs to dev-utils and is
+// tested there.
 const { settingsMigrationStub } = vi.hoisted(() => ({
   settingsMigrationStub: vi.fn<(params: SettingsMigrationComponentParams) => object>()
 }));
@@ -137,9 +137,9 @@ const manifest = castTo<PluginManifest>({
 let app: AppOriginal;
 
 // Flattens an error and everything nested inside it — `AggregateError.errors` and `cause` alike — into the
-// Messages it carries, so an assertion can name the message it cares about without also encoding how many
-// Layers of aggregation happen to sit above it today. Returns `[]` for a non-error, which is what makes a
-// Rejection that never happened fail the assertion rather than pass it vacuously.
+// messages it carries, so an assertion can name the message it cares about without also encoding how many
+// layers of aggregation happen to sit above it today. Returns `[]` for a non-error, which is what makes a
+// rejection that never happened fail the assertion rather than pass it vacuously.
 function collectErrorMessages(error: unknown): string[] {
   if (!(error instanceof Error)) {
     return [];
@@ -167,8 +167,8 @@ function createApp(adapterOverride?: object): AppOriginal {
     callback();
   });
   // The suggestion component reads the registry on layout-ready to decide whether there is anything to
-  // Suggest. obsidian-test-mocks models `getPlugin` and `enabledPlugins`, but leaves `manifests` to throw,
-  // So only that one is seeded - on the real registry rather than replacing it.
+  // suggest. obsidian-test-mocks models `getPlugin` and `enabledPlugins`, but leaves `manifests` to throw,
+  // so only that one is seeded - on the real registry rather than replacing it.
   castTo<PluginsLike>(appMock.plugins).manifests = {};
   const newApp = appMock.asOriginalType__();
 
@@ -184,7 +184,7 @@ async function createLoadedPlugin(): Promise<Plugin> {
 }
 
 // The plugin's settings component is protected on `PluginBase`, so the instance the plugin actually handed
-// To the migration component is taken from the children it added.
+// to the migration component is taken from the children it added.
 async function loadPluginWithSettingsComponent(): Promise<PluginSettingsComponent> {
   const plugin = new Plugin(app, manifest);
   const addChildSpy = vi.spyOn(plugin, 'addChild');
@@ -202,7 +202,7 @@ function migrationParams(): SettingsMigrationComponentParams {
 }
 
 // The settings are read-only from the outside, so a pending value is arranged the same way the plugin
-// Itself writes one.
+// itself writes one.
 async function setPending(settingsComponent: PluginSettingsComponent, shouldHandleRenames: boolean): Promise<void> {
   await settingsComponent.editAndSave((settings) => {
     settings.proposedShouldHandleRenames = shouldHandleRenames;
@@ -253,11 +253,11 @@ describe('Plugin', () => {
     });
 
     // The throw still rejects `onload()`, so Obsidian still marks the plugin failed. What changed in
-    // Obsidian-dev-utils 101.7.0 is its SHAPE: the plugin now loads in two tiers, so a throw from
+    // obsidian-dev-utils 101.7.0 is its SHAPE: the plugin now loads in two tiers, so a throw from
     // `onloadImpl` travels up through both wrappers' `loadWithPromises()` and arrives wrapped in two
-    // Nested `AggregateError`s, each with an empty message of its own. Asserting on the top-level message
-    // Therefore matches nothing at all — the message is two levels down, and the assertion has to go
-    // Looking for it.
+    // nested `AggregateError`s, each with an empty message of its own. Asserting on the top-level message
+    // therefore matches nothing at all — the message is two levels down, and the assertion has to go
+    // looking for it.
     it('should throw when the vault adapter is not a FileSystemAdapter', async () => {
       app = createApp({});
       const plugin = new Plugin(app, manifest);
@@ -270,7 +270,7 @@ describe('Plugin', () => {
     });
 
     // Advanced Rename and Delete Handler owns rename/delete handling since 4.0.0. Two handlers acting on one
-    // Rename corrupts links, so this plugin must register none — the inverse of what it used to assert.
+    // rename corrupts links, so this plugin must register none — the inverse of what it used to assert.
     it('should not construct a rename/delete handler of its own', async () => {
       const renameDeleteHandlerModule = await import('obsidian-dev-utils/obsidian/components/rename-delete-handler-component');
       const renameDeleteHandlerSpy = vi.spyOn(renameDeleteHandlerModule, 'RenameDeleteHandlerComponent');
@@ -335,7 +335,7 @@ describe('Plugin', () => {
     });
 
     // Retiring through `editAndSave` rather than `setProperty` is what makes the retirement outlive a
-    // Reload; the in-memory-only variant would offer the migration again forever.
+    // reload; the in-memory-only variant would offer the migration again forever.
     it('should retire the pending value to disk once the migration is applied', async () => {
       const settingsComponent = await loadPluginWithSettingsComponent();
       await setPending(settingsComponent, true);
