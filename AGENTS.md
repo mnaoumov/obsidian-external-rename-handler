@@ -25,6 +25,7 @@ Since **4.0.0** it does **not** rewrite links itself. Rename and delete handling
 | Unit tests        | `npm test`                 |
 | Coverage          | `npm run test:coverage`    |
 | Integration tests | `npm run test:integration` |
+| Branch gate       | `npm run gate`             |
 | Commit (wizard)   | `npm run commit`           |
 
 ## Architecture
