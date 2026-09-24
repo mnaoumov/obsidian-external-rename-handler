@@ -335,7 +335,7 @@ describe('ExternalRenameHandlerComponent', () => {
       await triggerLayoutReady();
 
       // The second run disposes the map the first run opened, so no orphan keeps its connection open with its
-      // Debounced flush armed.
+      // debounced flush armed.
       expect(hoisted.pathInoMapStub[Symbol.dispose]).toHaveBeenCalledTimes(2);
       expect(hoisted.pathInoMapStub.init).toHaveBeenCalledTimes(2);
     });
@@ -394,8 +394,8 @@ describe('ExternalRenameHandlerComponent', () => {
     });
 
     // Regression test for GH #7: the settings are already loaded by the time the layout is ready, so the `loadSettings` handler
-    // Registered below never receives its event. When starting the watcher was left to that handler alone, no watcher was ever created
-    // While the patch still suppressed Obsidian's own notifications, and every external change was silently dropped.
+    // registered below never receives its event. When starting the watcher was left to that handler alone, no watcher was ever created
+    // while the patch still suppressed Obsidian's own notifications, and every external change was silently dropped.
     it('should start the watcher without waiting for a settings event', async () => {
       await createReadyComponent();
       expect(watch).toHaveBeenCalled();

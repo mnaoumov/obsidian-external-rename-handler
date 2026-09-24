@@ -71,8 +71,8 @@ beforeAll(async () => {
 
   vault.populate({
     // No heading: the NAME is the subject, and it is already on the tab, the
-    // Breadcrumb and the explorer row. An `# Chapter one` in the body would sit
-    // There unchanged after the rename and read as a contradiction.
+    // breadcrumb and the explorer row. An `# Chapter one` in the body would sit
+    // there unchanged after the rename and read as a contradiction.
     [OLD_TARGET_PATH]: 'This note is open right now. In a moment its file will be renamed on disk, by something that is not Obsidian.\n',
     [SOURCE_NOTE_PATH]: `# Reading list\n\nStart with [[${OLD_NOTE_NAME}]], then keep going.\n`
   });
@@ -98,7 +98,7 @@ beforeAll(async () => {
       });
 
       // Both halves of the story are on screen at once: the file explorer for
-      // The name, the editor for the link.
+      // the name, the editor for the link.
       app.workspace.leftSplit.expand();
       const fileExplorerLeaf = app.workspace.getLeavesOfType('file-explorer')[0];
       if (fileExplorerLeaf) {
@@ -106,8 +106,8 @@ beforeAll(async () => {
       }
 
       // The name is the whole subject of the second frame, and the folder holding
-      // It starts collapsed — so without this the explorer shows nothing but a
-      // Folder row and both frames look identical.
+      // it starts collapsed — so without this the explorer shows nothing but a
+      // folder row and both frames look identical.
       const targetFile = app.vault.getFileByPath(oldTargetPath);
       const fileExplorer = app.internalPlugins.getEnabledPluginById('file-explorer') as FileExplorerLike | null;
       if (fileExplorer && targetFile) {
@@ -115,7 +115,7 @@ beforeAll(async () => {
       }
 
       // ON, deliberately: the file's name is the subject of both frames, and the
-      // Inline title puts it in the editor too rather than only on the tab.
+      // inline title puts it in the editor too rather than only on the tab.
       app.vault.setConfig('showInlineTitle', true);
 
       await sleep(SETTLE_DELAY_IN_MILLISECONDS);
@@ -178,7 +178,7 @@ async function openTargetNote(): Promise<string> {
       const leaf = app.workspace.getLeaf(false);
       await leaf.openFile(file);
       // `source: true` forces RAW Markdown, so the frame shows the note as it is
-      // Stored rather than a rendered view of it.
+      // stored rather than a rendered view of it.
       await leaf.setViewState({
         state: { file: oldTargetPath, mode: 'source', source: true },
         type: 'markdown'
@@ -267,8 +267,8 @@ async function waitForRenameToBeNoticed(): Promise<string> {
       await sleep(RESIZE_SETTLE_DELAY_IN_MILLISECONDS);
 
       // Obsidian has to notice the change on disk first, and the plugin has to
-      // Pair the delete with the create before the vault moves the file, so this
-      // Wait is longer than most.
+      // pair the delete with the create before the vault moves the file, so this
+      // wait is longer than most.
       await waitUntil({
         message: 'the open note to follow the renamed file',
         predicate: () => app.workspace.getActiveFile()?.path === newTargetPath,

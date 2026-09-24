@@ -73,9 +73,9 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
   protected override async onLayoutReady(): Promise<void> {
     // A reload of this component registers a second `onLayoutReady` callback, so this method can run again over a map
-    // That already owns an open IndexedDB connection and an armed debounced flush. Dispose the outgoing one before
-    // Replacing it, and hand the incoming one to the component's own teardown, or the orphan keeps its connection open
-    // And fires its flush into a database nobody owns any more.
+    // that already owns an open IndexedDB connection and an armed debounced flush. Dispose the outgoing one before
+    // replacing it, and hand the incoming one to the component's own teardown, or the orphan keeps its connection open
+    // and fires its flush into a database nobody owns any more.
     this.pathInoMap[Symbol.dispose]();
     this.pathInoMap = this.registerDisposable(new PathInoMap());
     await this.pathInoMap.init(this.app);
@@ -124,8 +124,8 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     this._originalOnFileChange = patch.originalOnFileChange;
 
     // The patch above suppresses Obsidian's own file-change notifications, so the watcher registered here is the only thing left that
-    // Reaches the UI. The settings are already loaded by the time the layout is ready, which means the `loadSettings` handler below has
-    // Missed its event and can no longer be relied on to start the watcher.
+    // reaches the UI. The settings are already loaded by the time the layout is ready, which means the `loadSettings` handler below has
+    // missed its event and can no longer be relied on to start the watcher.
     await this.registerWatcher();
 
     registerAsyncEvent(

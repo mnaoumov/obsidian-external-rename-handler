@@ -12,7 +12,7 @@ import { configureCommunityPlugin } from 'obsidian-dev-utils/obsidian/community-
 
 // Everything here moves files with `node:fs`, never `app.fileManager` or `app.vault`.
 // That is the whole point: a rename Obsidian performs itself is not an EXTERNAL rename, so a demo
-// Built on the vault API would exercise none of this plugin.
+// built on the vault API would exercise none of this plugin.
 
 const PLUGIN_ID = 'external-rename-handler';
 const DEMO_FOLDER_PATH = 'Materials/01 External renames';
