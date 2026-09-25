@@ -93,10 +93,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
       items: this.app.vault.getAllLoadedFiles(),
       pluginNoticeComponent: this.pluginNoticeComponent,
       processItem: async (file) => {
-        if (cachedPaths.delete(file.path)) {
-          return;
-        }
-        if (isDotFile(file.path)) {
+        if (cachedPaths.delete(file.path) || isDotFile(file.path)) {
           return;
         }
         const stats = await stat(this.fileSystemAdapter.getFullRealPath(file.path));

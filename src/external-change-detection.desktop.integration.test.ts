@@ -89,10 +89,7 @@ describe('External change detection', () => {
           message: `The vault never picked up the external edit of ${notePath}`,
           predicate: async () => {
             const file = app.vault.getFileByPath(notePath);
-            if (!file) {
-              return false;
-            }
-            return (await app.vault.read(file)) === expectedContent;
+            return file ? (await app.vault.read(file)) === expectedContent : false;
           },
           timeoutInMilliseconds
         });
