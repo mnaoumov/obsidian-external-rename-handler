@@ -2,11 +2,13 @@ import type { Stats } from 'node:fs';
 import type {
   App as AppOriginal,
   FileSystemAdapter as FileSystemAdapterOriginal,
-  Notice as NoticeOriginal,
   TAbstractFile
 } from 'obsidian';
 import type { AbortSignalComponent } from 'obsidian-dev-utils/obsidian/components/abort-signal-component';
-import type { PluginNoticeComponent } from 'obsidian-dev-utils/obsidian/components/plugin-notice-component';
+import type {
+  PluginNoticeComponent,
+  PluginNoticeComponentDelayedNotice
+} from 'obsidian-dev-utils/obsidian/components/plugin-notice-component';
 import type { Mock } from 'vitest';
 
 import { watch } from 'chokidar';
@@ -208,12 +210,12 @@ function createComponent(): ExternalRenameHandlerComponent {
   });
 
   const pluginNoticeComponent = strictProxy<PluginNoticeComponent>({
-    showNotice: castTo<PluginNoticeComponent['showNotice']>(vi.fn(() =>
-      strictProxy<NoticeOriginal>({
-        hide: vi.fn(),
-        setMessage: vi.fn()
+    showNoticeAfterDelay: vi.fn(() =>
+      strictProxy<PluginNoticeComponentDelayedNotice>({
+        setContent: vi.fn(),
+        [Symbol.dispose]: vi.fn()
       })
-    ))
+    )
   });
 
   return new ExternalRenameHandlerComponent({
