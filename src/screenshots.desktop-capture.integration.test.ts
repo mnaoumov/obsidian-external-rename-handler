@@ -36,6 +36,7 @@ import {
 import { join } from 'node:path';
 import process from 'node:process';
 import {
+  applyObsidianTheme,
   captureObsidianScreenshot,
   evalInObsidian,
   labelScreenshot,
@@ -77,6 +78,7 @@ beforeAll(async () => {
     [SOURCE_NOTE_PATH]: `# Reading list\n\nStart with [[${OLD_NOTE_NAME}]], then keep going.\n`
   });
   await vault.syncToDevice();
+  await applyObsidianTheme({ theme: 'dark', vaultPath: vaultPath() });
 
   await evalInObsidian({
     async callback({ app, lib: { waitUntil }, oldTargetPath, sourceNotePath }) {
@@ -88,8 +90,6 @@ beforeAll(async () => {
        */
       const SETTLE_TIMEOUT_IN_MILLISECONDS = 20_000;
       const SETTLE_DELAY_IN_MILLISECONDS = 1000;
-
-      app.changeTheme('obsidian');
 
       await waitUntil({
         message: 'the staged notes to appear in the vault',
