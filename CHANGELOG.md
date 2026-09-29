@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 4.0.2
+
+- test(screenshots): merge the move onto applyObsidianTheme
+- chore(deps): merge the obsidian-integration-testing ^17 float
+- chore(deps): merge the obsidian-test-mocks ^7.0.0 float
+- style(comments): stop capitalizing the middle of a wrapped comment
+- fix(test): merge the headless demo-vault toolkit install
+- chore: adopt the npm run gate branch gate
+- fix(deps): restore the lockfile's missing resolved and integrity fields
+- docs(contributing): base PRs on main, the branch this repo actually has
+- build(markdownlint): forbid hard-wrapped markdown paragraphs
+- fix: tie the path-ino store to a lifetime, and stop losing its queued writes
+- test: size the external-change-detection wait ceiling under the transport's eval cap
+- chore: teach cspell the changelog's word checkable by the linter
+- refactor: name the handler component with the load-bearing desktop- prefix
+- fix(deps): float devalue to 5.9.4, clearing GHSA-9rgm-9g3h-6x36
+- chore(deps): drop the dead type-fest override
+- chore(deps): drop the dead markdown-it override
+- chore(deps): drop the dead js-yaml override
+- fix(deps): override smol-toml to clear a denial-of-service advisory
+- docs: drop the rule-id citations from the pin table
+- docs(changelog): name obsidian-dev-utils by its package name
+- docs: replace the private tracker references with what they pointed at
+
 ## 4.0.1
 
 - test: assert the load failure wherever the tiered loader now puts it
