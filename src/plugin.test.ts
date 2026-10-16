@@ -36,6 +36,7 @@ interface PluginsLike {
 
 interface PluginSuggestionComponentParams {
   readonly isSuggestionDeclined: (this: void) => boolean;
+  readonly reason: DocumentFragment | string;
   readonly setSuggestionDeclined: (this: void, isDeclined: boolean) => Promise<void>;
   readonly suggestedPluginId: string;
 }
@@ -288,6 +289,26 @@ describe('Plugin', () => {
 
       expect(pluginSuggestionStub).toHaveBeenCalled();
       expect(suggestionParams().suggestedPluginId).toBe('advanced-rename-and-delete-handler');
+    });
+
+    it('should explain the suggestion in a fragment reason', async () => {
+      await createLoadedPlugin();
+
+      const reason = suggestionParams().reason;
+      expect(reason).toBeInstanceOf(DocumentFragment);
+      expect(castTo<DocumentFragment>(reason).textContent).toBe(
+        'External Rename Handler recognizes a rename made outside the app, but it no longer rewrites the links itself.'
+          + ' Without Advanced Rename and Delete Handler, Obsidian learns the file\'s new name and nothing updates the notes'
+          + ' pointing at the old one.'
+      );
+    });
+
+    it('should mark the plugin names in the suggestion reason as code', async () => {
+      await createLoadedPlugin();
+
+      const reasonFragment = castTo<DocumentFragment>(suggestionParams().reason);
+      const codeTexts = [...reasonFragment.querySelectorAll('code')].map((codeEl) => codeEl.textContent);
+      expect(codeTexts).toEqual(['External Rename Handler', 'Advanced Rename and Delete Handler']);
     });
 
     it('should report the suggestion as not declined until the user says otherwise', async () => {

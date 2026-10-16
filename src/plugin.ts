@@ -3,6 +3,7 @@ import { PluginSettingsTabComponent } from '@mnaoumov/obsidian-lib/components/pl
 import { PluginSuggestionComponent } from '@mnaoumov/obsidian-lib/components/plugin-suggestion-component';
 import { SettingsMigrationComponent } from '@mnaoumov/obsidian-lib/components/settings-migration-component';
 import { PluginDataHandler } from '@mnaoumov/obsidian-lib/data-handler';
+import { appendCodeBlock } from '@mnaoumov/obsidian-lib/html-element';
 import { PluginBase } from '@mnaoumov/obsidian-lib/plugin/plugin';
 import { PluginEventSourceImpl } from '@mnaoumov/obsidian-lib/plugin/plugin-event-source';
 import { FileSystemAdapter } from 'obsidian';
@@ -16,9 +17,6 @@ import {
 import { ExternalRenameHandlerComponent } from './desktop-external-rename-handler-component.ts';
 import { PluginSettingsComponent } from './plugin-settings-component.ts';
 import { PluginSettingsTab } from './plugin-settings-tab.ts';
-
-const SUGGESTION_REASON = 'External Rename Handler recognizes a rename made outside the app, but it no longer rewrites the links itself.'
-  + ' Without Advanced Rename and Delete Handler, Obsidian learns the file\'s new name and nothing updates the notes pointing at the old one.';
 
 export class Plugin extends PluginBase {
   protected override async onloadImpl(): Promise<void> {
@@ -36,7 +34,7 @@ export class Plugin extends PluginBase {
         isSuggestionDeclined: (): boolean => pluginSettingsComponent.settings.isAdvancedRenameAndDeleteHandlerSuggestionDeclined,
         pluginNoticeComponent: this.pluginNoticeComponent,
         pluginSettingsComponent,
-        reason: SUGGESTION_REASON,
+        reason: createSuggestionReason(this.manifest.name),
         // `editAndSave`, not `setProperty`: a decline has to outlive a reload, and `setProperty` only edits
         // the in-memory state.
         setSuggestionDeclined: async (isDeclined): Promise<void> => {
@@ -106,4 +104,13 @@ export class Plugin extends PluginBase {
       })
     ]);
   }
+}
+
+function createSuggestionReason(pluginName: string): DocumentFragment {
+  return createFragment((fragment) => {
+    appendCodeBlock(fragment, pluginName);
+    fragment.appendText(' recognizes a rename made outside the app, but it no longer rewrites the links itself. Without ');
+    appendCodeBlock(fragment, ADVANCED_RENAME_AND_DELETE_HANDLER_PLUGIN_NAME);
+    fragment.appendText(', Obsidian learns the file\'s new name and nothing updates the notes pointing at the old one.');
+  });
 }
