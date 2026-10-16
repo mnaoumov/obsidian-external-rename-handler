@@ -1,4 +1,4 @@
-import { toPosixPath } from 'obsidian-dev-utils/path';
+import { toPosixPath } from '@mnaoumov/typescript-lib/path';
 
 export function isDotFile(path: string): boolean {
   path = toPosixPath(path) || '/';

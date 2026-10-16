@@ -1,8 +1,8 @@
 import type { App } from 'obsidian';
 
+import { printError } from '@mnaoumov/typescript-lib/error';
+import { TwoWayMap } from '@mnaoumov/typescript-lib/two-way-map';
 import { debounce } from 'obsidian';
-import { printError } from 'obsidian-dev-utils/error';
-import { TwoWayMap } from 'obsidian-dev-utils/two-way-map';
 
 const STORE_NAME = 'path-ino';
 

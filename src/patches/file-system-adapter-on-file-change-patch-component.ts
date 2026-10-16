@@ -1,7 +1,7 @@
 import type { FileSystemAdapter } from 'obsidian';
 
-import { MonkeyAroundComponent } from 'obsidian-dev-utils/obsidian/components/monkey-around-component';
-import { ensureNonNullable } from 'obsidian-dev-utils/type-guards';
+import { MonkeyAroundComponent } from '@mnaoumov/obsidian-lib/components/monkey-around-component';
+import { ensureNonNullable } from '@mnaoumov/typescript-lib/type-guards';
 
 import { isDotFile } from '../dot-file.ts';
 
