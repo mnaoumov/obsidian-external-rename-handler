@@ -1,6 +1,6 @@
 # Moving and folders
 
-An external **move** is just a rename to a different path, so External Rename Handler handles it the same way - and it works for folders too, not only single files.
+An external **move** is just a rename to a different path, so `External Rename Handler` handles it the same way - and it works for folders too, not only single files.
 
 As in [01 External renames](<./01 External renames.md>), install [Advanced Rename and Delete Handler](https://github.com/mnaoumov/obsidian-advanced-rename-and-delete-handler) first: this plugin recognizes the move, that one rewrites the links.
 
