@@ -20,6 +20,7 @@ import {
 import type { MigratableSettings } from './advanced-rename-and-delete-handler.ts';
 
 const PLUGIN_ID = 'external-rename-handler';
+const RENAME_DELETE_HANDLER_IMPORT_TIMEOUT_IN_MILLISECONDS = 30_000;
 
 interface AppGlobal {
   app: AppOriginal;
@@ -271,7 +272,9 @@ describe('Plugin', () => {
 
     // `Advanced Rename and Delete Handler` owns rename/delete handling since 4.0.0. Two handlers acting on one
     // rename corrupts links, so this plugin must register none — the inverse of what it used to assert.
-    it('should not construct a rename/delete handler of its own', async () => {
+    // Nothing else loads the handler's module graph, so its cold `import()` lands inside this test, and under
+    // a release's load it ran past vitest's 5s default. Hence the explicit timeout.
+    it('should not construct a rename/delete handler of its own', { timeout: RENAME_DELETE_HANDLER_IMPORT_TIMEOUT_IN_MILLISECONDS }, async () => {
       const renameDeleteHandlerModule = await import('@mnaoumov/obsidian-lib/components/rename-delete-handler-component');
       const renameDeleteHandlerSpy = vi.spyOn(renameDeleteHandlerModule, 'RenameDeleteHandlerComponent');
 
