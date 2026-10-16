@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 4.0.3
+
+- test(plugin): give the cold rename/delete handler import its own timeout
+- build(deps): move off obsidian-dev-utils onto the @mnaoumov packages
+- docs: mark plugin names as code in markdown and comments
+
 ## 4.0.2
 
 - test(screenshots): merge the move onto applyObsidianTheme
