@@ -1,7 +1,7 @@
 import type { FileSystemAdapter } from 'obsidian';
 import type { Mock } from 'vitest';
 
-import { castTo } from 'obsidian-dev-utils/object-utils';
+import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import {
   describe,
   expect,

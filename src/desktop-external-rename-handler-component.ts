@@ -1,24 +1,24 @@
+import type { AbortSignalComponent } from '@mnaoumov/obsidian-lib/components/abort-signal-component';
+import type { PluginNoticeComponent } from '@mnaoumov/obsidian-lib/components/plugin-notice-component';
 import type { FSWatcher } from 'chokidar';
 import type { EventName } from 'chokidar/handler.js';
 import type {
   App,
   FileSystemAdapter
 } from 'obsidian';
-import type { AbortSignalComponent } from 'obsidian-dev-utils/obsidian/components/abort-signal-component';
-import type { PluginNoticeComponent } from 'obsidian-dev-utils/obsidian/components/plugin-notice-component';
 
+import { registerAsyncEvent } from '@mnaoumov/obsidian-lib/components/async-events-component';
+import { LayoutReadyComponent } from '@mnaoumov/obsidian-lib/components/layout-ready-component';
+import { loop } from '@mnaoumov/obsidian-lib/loop';
+import { convertAsyncToSync } from '@mnaoumov/typescript-lib/async';
+import { printError } from '@mnaoumov/typescript-lib/error';
+import { normalizeOptionalProperties } from '@mnaoumov/typescript-lib/object-utils';
+import { toPosixPath } from '@mnaoumov/typescript-lib/path';
+import { ensureNonNullable } from '@mnaoumov/typescript-lib/type-guards';
 import { getDataAdapterEx } from '@obsidian-typings/obsidian-public-latest/implementations';
 import { watch } from 'chokidar';
 import { Stats } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { convertAsyncToSync } from 'obsidian-dev-utils/async';
-import { printError } from 'obsidian-dev-utils/error';
-import { normalizeOptionalProperties } from 'obsidian-dev-utils/object-utils';
-import { registerAsyncEvent } from 'obsidian-dev-utils/obsidian/components/async-events-component';
-import { LayoutReadyComponent } from 'obsidian-dev-utils/obsidian/components/layout-ready-component';
-import { loop } from 'obsidian-dev-utils/obsidian/loop';
-import { toPosixPath } from 'obsidian-dev-utils/path';
-import { ensureNonNullable } from 'obsidian-dev-utils/type-guards';
 
 import type { OnFileChangeFunction } from './patches/file-system-adapter-on-file-change-patch-component.ts';
 import type { PluginSettingsComponent } from './plugin-settings-component.ts';

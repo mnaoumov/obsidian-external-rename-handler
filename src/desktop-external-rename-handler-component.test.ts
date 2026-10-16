@@ -1,21 +1,21 @@
+import type { AbortSignalComponent } from '@mnaoumov/obsidian-lib/components/abort-signal-component';
+import type {
+  PluginNoticeComponent,
+  PluginNoticeComponentDelayedNotice
+} from '@mnaoumov/obsidian-lib/components/plugin-notice-component';
 import type { Stats } from 'node:fs';
 import type {
   App as AppOriginal,
   FileSystemAdapter as FileSystemAdapterOriginal,
   TAbstractFile
 } from 'obsidian';
-import type { AbortSignalComponent } from 'obsidian-dev-utils/obsidian/components/abort-signal-component';
-import type {
-  PluginNoticeComponent,
-  PluginNoticeComponentDelayedNotice
-} from 'obsidian-dev-utils/obsidian/components/plugin-notice-component';
 import type { Mock } from 'vitest';
 
+import { noopAsync } from '@mnaoumov/typescript-lib/function';
+import { castTo } from '@mnaoumov/typescript-lib/object-utils';
+import { waitForAllAsyncOperations } from '@mnaoumov/typescript-test-toolkit/async-operation-tracking';
+import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { watch } from 'chokidar';
-import { waitForAllAsyncOperations } from 'obsidian-dev-utils/async';
-import { noopAsync } from 'obsidian-dev-utils/function';
-import { castTo } from 'obsidian-dev-utils/object-utils';
-import { strictProxy } from 'obsidian-dev-utils/strict-proxy';
 import { App } from 'obsidian-test-mocks/obsidian';
 import {
   afterEach,
