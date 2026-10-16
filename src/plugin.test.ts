@@ -269,7 +269,7 @@ describe('Plugin', () => {
       expect(collectErrorMessages(error)).toContain('Vault adapter is not a FileSystemAdapter');
     });
 
-    // Advanced Rename and Delete Handler owns rename/delete handling since 4.0.0. Two handlers acting on one
+    // `Advanced Rename and Delete Handler` owns rename/delete handling since 4.0.0. Two handlers acting on one
     // rename corrupts links, so this plugin must register none — the inverse of what it used to assert.
     it('should not construct a rename/delete handler of its own', async () => {
       const renameDeleteHandlerModule = await import('obsidian-dev-utils/obsidian/components/rename-delete-handler-component');

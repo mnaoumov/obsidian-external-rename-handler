@@ -17,7 +17,7 @@
  * leaf is on, so the pair cannot silently show the same frame twice.
  *
  * LINKS are deliberately out of frame. Since 4.0.0 this plugin reports the
- * rename and Advanced Rename and Delete Handler rewrites the links, and this
+ * rename and `Advanced Rename and Delete Handler` rewrites the links, and this
  * vault has only this plugin installed — so a link left pointing at the old name
  * is correct here, and putting it on the store listing would say the opposite of
  * what these frames are for.
@@ -143,8 +143,8 @@ describe('desktop store screenshots', () => {
 /**
  * Clears the floating notices before a frame is taken.
  *
- * Every shot wants the subject, not the plugin talking over it. The notice suggesting Advanced Rename and
- * Delete Handler in particular is persistent — it carries buttons, so it waits for an answer rather than
+ * Every shot wants the subject, not the plugin talking over it. The notice suggesting
+ * `Advanced Rename and Delete Handler` in particular is persistent — it carries buttons, so it waits for an answer rather than
  * timing out — and it lands squarely over the file explorer these frames are about.
  */
 async function dismissNotices(): Promise<void> {
