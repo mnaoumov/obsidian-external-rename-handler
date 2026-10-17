@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 4.0.4
+
+- chore(github): point questions to Discussions from the new-issue page
+- fix(watcher): merge handling decomposed-Unicode file names
+- ci: merge attesting release assets through the toolkit's reusable workflow
+- fix(plugin): merge marking the plugin names in the suggestion reason as code
+
 ## 4.0.3
 
 - test(plugin): give the cold rename/delete handler import its own timeout
