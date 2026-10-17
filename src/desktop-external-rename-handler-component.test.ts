@@ -478,6 +478,36 @@ describe('ExternalRenameHandlerComponent', () => {
       expect(originalOnFileChangeSpy).toHaveBeenCalledWith('renamed.md');
     });
 
+    // Regression test for GH #5: the watcher reports the real on-disk name, which can be decomposed (NFD), while the map,
+    // `adapter.files` and the vault are keyed by the normalized (NFC) one. Keying the map by the real name read an
+    // external rename of such a file as a delete plus a create.
+    it('should key a rename by the normalized path and hand the original onFileChange the real one', async () => {
+      await setup();
+      const normalizedPath = 'folder-й/renamed-й.md';
+      const realPath = normalizedPath.normalize('NFD');
+      hoisted.pathInoMapStub.getPath.mockReturnValue('old.md');
+      adapter.files['old.md'] = { realpath: '/test-vault/old.md' };
+      getWatcherHandler('all')('add', realPath, { ino: 500 });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 500, path: normalizedPath });
+      expect(adapter.files[normalizedPath]).toEqual({ realpath: realPath });
+      expect(adapter.files[realPath]).toBeUndefined();
+      expect(onChangeMock).toHaveBeenCalledWith('renamed', normalizedPath, 'old.md');
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith(realPath);
+    });
+
+    it('should look up an unlink by the normalized path', async () => {
+      await setup();
+      hoisted.settings.deletionRenameDetectionTimeoutInMilliseconds = 0;
+      const normalizedPath = 'deleted-й.md';
+      const realPath = normalizedPath.normalize('NFD');
+      hoisted.pathInoMapStub.getIno.mockReturnValue(600);
+      hoisted.pathInoMapStub.getPath.mockReturnValue(normalizedPath);
+      getWatcherHandler('all')('unlink', realPath);
+      expect(hoisted.pathInoMapStub.getIno).toHaveBeenCalledWith(normalizedPath);
+      expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith(normalizedPath);
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith(realPath);
+    });
+
     it('should handle a rename without a file entry', async () => {
       await setup();
       hoisted.pathInoMapStub.getPath.mockReturnValue('old.md');
