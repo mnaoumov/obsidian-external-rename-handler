@@ -19,6 +19,7 @@ import { getDataAdapterEx } from '@obsidian-typings/obsidian-public-latest/imple
 import { watch } from 'chokidar';
 import { Stats } from 'node:fs';
 import { stat } from 'node:fs/promises';
+import { normalizePath } from 'obsidian';
 
 import type { OnFileChangeFunction } from './patches/file-system-adapter-on-file-change-patch-component.ts';
 import type { PluginSettingsComponent } from './plugin-settings-component.ts';
@@ -38,6 +39,7 @@ interface ExternalRenameHandlerComponentConstructorParams {
 interface ExternalRenameHandlerComponentHandleDeletionParams {
   readonly ino: number;
   readonly path: string;
+  readonly realPath: string;
 }
 
 interface ExternalRenameHandlerComponentHandleWatcherEventParams {
@@ -96,7 +98,9 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         if (cachedPaths.delete(file.path) || isDotFile(file.path)) {
           return;
         }
-        const stats = await stat(this.fileSystemAdapter.getFullRealPath(file.path));
+        // `getFullPath`, never `getFullRealPath`: `file.path` is normalized (NFC), and only `getFullPath` maps it back to
+        // the real on-disk name. A decomposed (NFD) name would otherwise point at a file that does not exist.
+        const stats = await stat(this.fileSystemAdapter.getFullPath(file.path));
         this.pathInoMap.set({ ino: stats.ino, path: file.path });
       },
       progressBarTitle: 'External Rename Handler: Initializing...',
@@ -141,12 +145,12 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
   }
 
   private handleDeletion(params: ExternalRenameHandlerComponentHandleDeletionParams): void {
-    const { ino, path } = params;
+    const { ino, path, realPath } = params;
     if (this.pathInoMap.getPath(ino) !== path) {
       return;
     }
     this.pathInoMap.deletePath(path);
-    this.originalOnFileChange(path);
+    this.originalOnFileChange(realPath);
   }
 
   private handleWatcherError(error: unknown): void {
@@ -156,11 +160,14 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
   private handleWatcherEvent(params: ExternalRenameHandlerComponentHandleWatcherEventParams): void {
     const { event, stats } = params;
-    let { path } = params;
-    path = toPosixPath(path) || '/';
+    // The watcher reports the real on-disk path, which can be decomposed (NFD). The map, `adapter.files` and the vault are
+    // keyed by the normalized path, as Obsidian's own indexing keys them, while the original `onFileChange` takes the real
+    // one and normalizes it itself.
+    const realPath = toPosixPath(params.path) || '/';
+    const path = normalizePath(realPath) || '/';
 
     if (isDotFile(path)) {
-      this.originalOnFileChange(path);
+      this.originalOnFileChange(realPath);
       return;
     }
 
@@ -171,7 +178,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
           return;
         }
         if (!stats) {
-          this.originalOnFileChange(path);
+          this.originalOnFileChange(realPath);
           return;
         }
         const oldPath = this.pathInoMap.getPath(stats.ino);
@@ -190,7 +197,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
           if (fileEntry) {
             // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- Need to delete file entry.
             delete this.fileSystemAdapter.files[oldPath];
-            fileEntry.realpath = this.fileSystemAdapter.getRealPath(path);
+            fileEntry.realpath = realPath;
             this.fileSystemAdapter.files[path] = fileEntry;
             this.app.vault.onChange('renamed', path, oldPath);
 
@@ -198,7 +205,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
           }
         }
 
-        this.originalOnFileChange(path);
+        this.originalOnFileChange(realPath);
 
         break;
       }
@@ -211,15 +218,15 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
         if (this.pluginSettingsComponent.settings.deletionRenameDetectionTimeoutInMilliseconds > 0) {
           window.setTimeout(() => {
-            this.handleDeletion({ ino, path });
+            this.handleDeletion({ ino, path, realPath });
           }, this.pluginSettingsComponent.settings.deletionRenameDetectionTimeoutInMilliseconds);
         } else {
-          this.handleDeletion({ ino, path });
+          this.handleDeletion({ ino, path, realPath });
         }
         break;
       }
       default: {
-        this.originalOnFileChange(path);
+        this.originalOnFileChange(realPath);
         break;
       }
     }
