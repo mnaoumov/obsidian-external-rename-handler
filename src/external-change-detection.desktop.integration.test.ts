@@ -25,6 +25,10 @@ const WAIT_TIMEOUT_IN_MILLISECONDS = 20_000;
 const CREATED_NOTE_PATH = 'external-change-detection-created.md';
 const RENAMED_NOTE_PATH = 'external-change-detection-renamed.md';
 
+// Obsidian keys the vault by the NFC form of a name, while the file on disk keeps its decomposed (NFD) one.
+const DECOMPOSED_CREATED_NOTE_PATH = 'external-change-detection-й-created.md';
+const DECOMPOSED_RENAMED_NOTE_PATH = 'external-change-detection-й-renamed.md';
+
 const INITIAL_CONTENT = 'initial content';
 const APPENDED_CONTENT = 'appended content';
 
@@ -32,8 +36,39 @@ function getFullPath(path: string): string {
   return join(getTemporaryVault().path, path);
 }
 
+async function openInNewLeaf(path: string): Promise<void> {
+  await evalInObsidian({
+    async callback({ app, path: notePath }) {
+      const file = app.vault.getFileByPath(notePath);
+      if (!file) {
+        throw new Error(`The note ${notePath} is not in the vault`);
+      }
+      await app.workspace.getLeaf('tab').openFile(file);
+    },
+    input: { path },
+    vaultPath: getTemporaryVault().path
+  });
+}
+
 async function removeExternally(path: string): Promise<void> {
   await rm(getFullPath(path), { force: true });
+}
+
+async function waitForOpenLeafToShow(path: string): Promise<void> {
+  await evalInObsidian({
+    async callback({ app, lib: { waitUntil }, path: notePath, WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds }) {
+      await waitUntil({
+        message: `No open leaf followed the note to ${notePath}`,
+        predicate: () => app.workspace.getLeavesOfType('markdown').some((leaf) => leaf.getViewState().state?.['file'] === notePath),
+        timeoutInMilliseconds
+      });
+    },
+    input: {
+      path,
+      WAIT_TIMEOUT_IN_MILLISECONDS
+    },
+    vaultPath: getTemporaryVault().path
+  });
 }
 
 async function waitForVaultToSee(path: string, shouldExist: boolean): Promise<void> {
@@ -62,8 +97,27 @@ describe('External change detection', () => {
   afterEach(async () => {
     await removeExternally(CREATED_NOTE_PATH);
     await removeExternally(RENAMED_NOTE_PATH);
+    await removeExternally(DECOMPOSED_CREATED_NOTE_PATH.normalize('NFD'));
+    await removeExternally(DECOMPOSED_RENAMED_NOTE_PATH.normalize('NFD'));
     await waitForVaultToSee(CREATED_NOTE_PATH, false);
     await waitForVaultToSee(RENAMED_NOTE_PATH, false);
+    await waitForVaultToSee(DECOMPOSED_CREATED_NOTE_PATH, false);
+    await waitForVaultToSee(DECOMPOSED_RENAMED_NOTE_PATH, false);
+  });
+
+  it('should reflect an externally renamed note with a decomposed name under its normalized path', async () => {
+    await writeExternally(DECOMPOSED_CREATED_NOTE_PATH.normalize('NFD'), INITIAL_CONTENT);
+    await waitForVaultToSee(DECOMPOSED_CREATED_NOTE_PATH, true);
+    await openInNewLeaf(DECOMPOSED_CREATED_NOTE_PATH);
+
+    await rename(getFullPath(DECOMPOSED_CREATED_NOTE_PATH.normalize('NFD')), getFullPath(DECOMPOSED_RENAMED_NOTE_PATH.normalize('NFD')));
+
+    await waitForVaultToSee(DECOMPOSED_RENAMED_NOTE_PATH, true);
+    await waitForVaultToSee(DECOMPOSED_CREATED_NOTE_PATH, false);
+
+    // A real rename keeps the file's identity, so the leaf showing it follows it to the new path. A delete plus create, which
+    // is what mixing the decomposed and normalized forms produced, closes the note in the leaf instead.
+    await waitForOpenLeafToShow(DECOMPOSED_RENAMED_NOTE_PATH);
   });
 
   it('should reflect an externally created note', async () => {

@@ -71,8 +71,7 @@ interface SetParams {
 interface TestAdapter {
   basePath: string;
   files: Record<string, FileEntry>;
-  getFullRealPath: (path: string) => string;
-  getRealPath: (path: string) => string;
+  getFullPath: (path: string) => string;
   onFileChange: (path: null | string) => void;
 }
 
@@ -172,8 +171,7 @@ function createAdapter(): TestAdapter {
   return {
     basePath: '/test-vault',
     files: {},
-    getFullRealPath: (path: string): string => `/test-vault/${path}`,
-    getRealPath: (path: string): string => `/test-vault/${path}`,
+    getFullPath: (path: string): string => `/test-vault/${path}`,
     onFileChange: originalOnFileChangeSpy
   };
 }
@@ -374,6 +372,20 @@ describe('ExternalRenameHandlerComponent', () => {
       expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalledWith({ ino: 200, path: '/cached.md' });
     });
 
+    // Regression test for GH #5: `file.path` is normalized (NFC), so a decomposed (NFD) name on disk exists only under
+    // the real path the adapter's file entry maps it to. Calling `stat` on the joined normalized path threw ENOENT once
+    // per such file, each one surfacing as an unhandled error.
+    it('should stat the real on-disk path the adapter maps a normalized path to', async () => {
+      const normalizedPath = 'folder-й/note-й.jpg';
+      const realPath = normalizedPath.normalize('NFD');
+      adapter.getFullPath = (path: string): string => `/test-vault/${path === normalizedPath ? realPath : path}`;
+      loadedFiles = [castTo<TAbstractFile>({ path: normalizedPath })];
+      hoisted.stat.mockResolvedValue({ ino: 200 });
+      await createReadyComponent();
+      expect(hoisted.stat).toHaveBeenCalledWith(`/test-vault/${realPath}`);
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 200, path: normalizedPath });
+    });
+
     it('should skip dot files while indexing loaded files', async () => {
       loadedFiles = [castTo<TAbstractFile>({ path: '.dot-folder/config' })];
       hoisted.stat.mockResolvedValue({ ino: 200 });
@@ -459,7 +471,7 @@ describe('ExternalRenameHandlerComponent', () => {
       getWatcherHandler('all')('add', 'renamed.md', { ino: 500 });
       expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 500, path: 'renamed.md' });
       expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('old.md');
-      expect(adapter.files['renamed.md']).toBeDefined();
+      expect(adapter.files['renamed.md']).toEqual({ realpath: 'renamed.md' });
       expect(adapter.files['old.md']).toBeUndefined();
       expect(onChangeMock).toHaveBeenCalledWith('renamed', 'renamed.md', 'old.md');
       expect(originalOnFileChangeSpy).toHaveBeenCalledWith('old.md');
