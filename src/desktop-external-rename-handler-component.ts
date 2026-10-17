@@ -164,7 +164,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     // keyed by the normalized path, as Obsidian's own indexing keys them, while the original `onFileChange` takes the real
     // one and normalizes it itself.
     const realPath = toPosixPath(params.path) || '/';
-    const path = normalizePath(realPath) || '/';
+    const path = normalizePath(realPath);
 
     if (isDotFile(path)) {
       this.originalOnFileChange(realPath);
