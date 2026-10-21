@@ -103,7 +103,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         const stats = await stat(this.fileSystemAdapter.getFullPath(file.path));
         this.pathInoMap.set({ ino: stats.ino, path: file.path });
       },
-      progressBarTitle: 'External Rename Handler: Initializing...',
+      progressBarTitle: 'Initializing...',
       shouldShowProgressBar: true
     });
 
@@ -116,7 +116,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         processItem: (path) => {
           this.pathInoMap.deletePath(path);
         },
-        progressBarTitle: 'External Rename Handler: Cleanup...',
+        progressBarTitle: 'Cleanup...',
         shouldShowProgressBar: true
       });
     }
