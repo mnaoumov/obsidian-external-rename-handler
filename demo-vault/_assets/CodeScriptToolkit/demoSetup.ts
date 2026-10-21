@@ -8,7 +8,7 @@ import {
   writeFile
 } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { configureCommunityPlugin } from 'obsidian-dev-utils/obsidian/community-plugins';
+import { configureCommunityPlugin } from '@mnaoumov/obsidian-lib/community-plugins';
 
 // Everything here moves files with `node:fs`, never `app.fileManager` or `app.vault`.
 // That is the whole point: a rename Obsidian performs itself is not an EXTERNAL rename, so a demo
