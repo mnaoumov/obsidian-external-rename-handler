@@ -254,8 +254,8 @@ describe('Plugin', () => {
       );
     });
 
-    // The throw still rejects `onload()`, so Obsidian still marks the plugin failed. What changed in
-    // obsidian-dev-utils 101.7.0 is its SHAPE: the plugin now loads in two tiers, so a throw from
+    // The throw still rejects `onload()`, so Obsidian still marks the plugin failed. What changed is its
+    // SHAPE: the plugin base loads in two tiers, so a throw from
     // `onloadImpl` travels up through both wrappers' `loadWithPromises()` and arrives wrapped in two
     // nested `AggregateError`s, each with an empty message of its own. Asserting on the top-level message
     // therefore matches nothing at all — the message is two levels down, and the assertion has to go
