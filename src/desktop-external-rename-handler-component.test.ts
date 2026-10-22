@@ -120,7 +120,7 @@ const hoisted = vi.hoisted(() => {
   };
 });
 
-// --- Allowed mocks: non dev-utils / non test-mocks modules ---
+// --- Allowed mocks: non obsidian-lib / non test-mocks modules ---
 
 vi.mock('chokidar', () => ({
   watch: vi.fn(() => {
