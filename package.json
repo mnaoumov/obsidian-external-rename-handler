@@ -57,7 +57,7 @@
     "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.5",
     "better-typescript-lib": "^2.12.0",
-    "chokidar": "5.0.0",
+    "chokidar": "^6.0.0",
     "czg": "^1.14.0",
     "eslint": "^10.13.0",
     "fake-indexeddb": "^6.2.6",

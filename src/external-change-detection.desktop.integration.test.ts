@@ -7,7 +7,9 @@ import { join } from 'node:path';
 import { evalInObsidian } from 'obsidian-integration-testing';
 import { getTemporaryVault } from 'obsidian-integration-testing/vitest-global-setup-plugin';
 import {
+  afterAll,
   afterEach,
+  beforeAll,
   describe,
   expect,
   it
@@ -32,6 +34,36 @@ const DECOMPOSED_RENAMED_NOTE_PATH = 'external-change-detection-й-renamed.md';
 const INITIAL_CONTENT = 'initial content';
 const APPENDED_CONTENT = 'appended content';
 
+const PLUGIN_ID = 'external-rename-handler';
+const DEFAULT_POLLING_INTERVAL_IN_MILLISECONDS = 2000;
+
+// Each `chokidar` backend pairs the `unlink` and `add` of a rename on its own, so every case runs under both.
+const BACKENDS = [
+  { backend: 'polling', pollingIntervalInMilliseconds: DEFAULT_POLLING_INTERVAL_IN_MILLISECONDS },
+  { backend: 'auto', pollingIntervalInMilliseconds: 0 }
+] as const;
+
+// The slices of the plugin's component tree the backend switch reads: the settings component and the handler's `chokidar` watcher.
+interface ComponentTreeNode {
+  _children?: ComponentTreeNode[];
+  editAndSave?: (editor: (settings: PollingSettings) => void) => Promise<void>;
+  settings?: Partial<PollingSettings>;
+  watcher?: null | WatcherSlice;
+}
+
+interface PollingSettings {
+  pollingIntervalInMilliseconds: number;
+}
+
+interface WatcherOptionsSlice {
+  backend: string;
+}
+
+interface WatcherSlice {
+  options: WatcherOptionsSlice;
+  readyEmitted: boolean;
+}
+
 function getFullPath(path: string): string {
   return join(getTemporaryVault().path, path);
 }
@@ -52,6 +84,50 @@ async function openInNewLeaf(path: string): Promise<void> {
 
 async function removeExternally(path: string): Promise<void> {
   await rm(getFullPath(path), { force: true });
+}
+
+async function setPollingInterval(pollingIntervalInMilliseconds: number, expectedBackend: string): Promise<void> {
+  await evalInObsidian({
+    async callback({
+      app,
+      expectedBackend: backend,
+      lib: { waitUntil },
+      pluginId,
+      pollingIntervalInMilliseconds: interval,
+      WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds
+    }) {
+      function findNode(isMatch: (node: ComponentTreeNode) => boolean): ComponentTreeNode {
+        const queue: ComponentTreeNode[] = [app.plugins.getPlugin(pluginId) as ComponentTreeNode];
+        for (let node = queue.shift(); node; node = queue.shift()) {
+          if (isMatch(node)) {
+            return node;
+          }
+          queue.push(...node._children ?? []);
+        }
+        throw new Error('The component was not found.');
+      }
+
+      const settingsComponent = findNode((node) => typeof node.editAndSave === 'function' && typeof node.settings?.pollingIntervalInMilliseconds === 'number');
+      await settingsComponent.editAndSave?.((settings) => {
+        settings.pollingIntervalInMilliseconds = interval;
+      });
+
+      // Saving the settings re-creates the watcher, and an external change made before its initial scan is done can be missed.
+      const handlerComponent = findNode((node) => node.watcher !== undefined);
+      await waitUntil({
+        message: `The watcher never became ready on the ${backend} backend`,
+        predicate: () => handlerComponent.watcher?.options.backend === backend && handlerComponent.watcher.readyEmitted,
+        timeoutInMilliseconds
+      });
+    },
+    input: {
+      expectedBackend,
+      pluginId: PLUGIN_ID,
+      pollingIntervalInMilliseconds,
+      WAIT_TIMEOUT_IN_MILLISECONDS
+    },
+    vaultPath: getTemporaryVault().path
+  });
 }
 
 async function waitForOpenLeafToShow(path: string): Promise<void> {
@@ -93,7 +169,15 @@ async function writeExternally(path: string, content: string): Promise<void> {
   await writeFile(getFullPath(path), content, 'utf-8');
 }
 
-describe('External change detection', () => {
+describe.each(BACKENDS)('External change detection on the $backend backend', ({ backend, pollingIntervalInMilliseconds }) => {
+  beforeAll(async () => {
+    await setPollingInterval(pollingIntervalInMilliseconds, backend);
+  });
+
+  afterAll(async () => {
+    await setPollingInterval(DEFAULT_POLLING_INTERVAL_IN_MILLISECONDS, 'polling');
+  });
+
   afterEach(async () => {
     await removeExternally(CREATED_NOTE_PATH);
     await removeExternally(RENAMED_NOTE_PATH);
@@ -165,11 +249,13 @@ describe('External change detection', () => {
   it('should reflect an externally renamed note', async () => {
     await writeExternally(CREATED_NOTE_PATH, INITIAL_CONTENT);
     await waitForVaultToSee(CREATED_NOTE_PATH, true);
+    await openInNewLeaf(CREATED_NOTE_PATH);
 
     await rename(getFullPath(CREATED_NOTE_PATH), getFullPath(RENAMED_NOTE_PATH));
 
     await waitForVaultToSee(RENAMED_NOTE_PATH, true);
     await waitForVaultToSee(CREATED_NOTE_PATH, false);
+    await waitForOpenLeafToShow(RENAMED_NOTE_PATH);
   });
 
   it('should reflect an externally deleted note', async () => {
