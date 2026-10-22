@@ -1,7 +1,13 @@
 import type { AbortSignalComponent } from '@mnaoumov/obsidian-lib/components/abort-signal-component';
 import type { PluginNoticeComponent } from '@mnaoumov/obsidian-lib/components/plugin-notice-component';
-import type { FSWatcher } from 'chokidar';
-import type { EventName } from 'chokidar/handler.js';
+import type {
+  FSWatcher,
+  FSWatcherEventMap
+} from 'chokidar';
+import type {
+  BigIntStats,
+  Stats
+} from 'node:fs';
 import type {
   App,
   FileSystemAdapter
@@ -16,17 +22,24 @@ import { normalizeOptionalProperties } from '@mnaoumov/typescript-lib/object-uti
 import { toPosixPath } from '@mnaoumov/typescript-lib/path';
 import { ensureNonNullable } from '@mnaoumov/typescript-lib/type-guards';
 import { getDataAdapterEx } from '@obsidian-typings/obsidian-public-latest/implementations';
-import { watch } from 'chokidar';
-import { Stats } from 'node:fs';
 import { stat } from 'node:fs/promises';
+import {
+  isAbsolute,
+  relative,
+  sep
+} from 'node:path';
 import { normalizePath } from 'obsidian';
 
 import type { OnFileChangeFunction } from './patches/file-system-adapter-on-file-change-patch-component.ts';
 import type { PluginSettingsComponent } from './plugin-settings-component.ts';
 
+import { watch } from './desktop-chokidar-watch.ts';
 import { isDotFile } from './dot-file.ts';
 import { FileSystemAdapterOnFileChangePatchComponent } from './patches/file-system-adapter-on-file-change-patch-component.ts';
 import { PathInoMap } from './path-ino-map.ts';
+
+// `chokidar` 6 no longer exports `EventName` from any public entry point.
+type EventName = FSWatcherEventMap['all'][0];
 
 interface ExternalRenameHandlerComponentConstructorParams {
   readonly abortSignalComponent: AbortSignalComponent;
@@ -45,7 +58,8 @@ interface ExternalRenameHandlerComponentHandleDeletionParams {
 interface ExternalRenameHandlerComponentHandleWatcherEventParams {
   readonly event: EventName;
   readonly path: string;
-  readonly stats?: Stats;
+  // `chokidar` 6 declares `Stats`, but its polling backend hands `add` a bigint inode.
+  readonly stats?: BigIntStats | Stats;
 }
 
 export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
@@ -181,14 +195,16 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
           this.originalOnFileChange(realPath);
           return;
         }
-        const oldPath = this.pathInoMap.getPath(stats.ino);
+        // The map holds the plain-number inode `stat` returns, and a bigint one never equals it.
+        const ino = Number(stats.ino);
+        const oldPath = this.pathInoMap.getPath(ino);
 
         if (oldPath === path) {
           return;
         }
 
         const isRename = oldPath !== undefined;
-        this.pathInoMap.set({ ino: stats.ino, path });
+        this.pathInoMap.set({ ino, path });
 
         if (isRename) {
           this.pathInoMap.deletePath(oldPath);
@@ -241,15 +257,25 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
     const adapter = getDataAdapterEx(this.app);
 
+    const { pollingIntervalInMilliseconds } = this.pluginSettingsComponent.settings;
+    const isPolling = pollingIntervalInMilliseconds > 0;
+
     this.watcher = watch('.', {
+      // `chokidar` 6 rejects a polling interval that is not positive even on a native backend, so it goes to polling alone.
+      ...isPolling && {
+        pollingBinaryInterval: pollingIntervalInMilliseconds,
+        pollingInterval: pollingIntervalInMilliseconds
+      },
+      // Rename detection reads the inode off every `add`, and `chokidar` 6 passes `stats` only when its backend has them.
+      alwaysStat: true,
+      // `chokidar` 6 defaults `atomic` to `false` under polling, so it is set explicitly to keep both backends alike.
       atomic: true,
-      binaryInterval: this.pluginSettingsComponent.settings.pollingIntervalInMilliseconds,
+      // `auto` is one recursive `fs.watch` for the whole vault on Windows and macOS, and one per directory elsewhere.
+      backend: isPolling ? 'polling' : 'auto',
       cwd: adapter.basePath,
-      ignored: isDotFile,
+      ignored: (path: string): boolean => isDotFile(toVaultPath(this.fileSystemAdapter.basePath, path)),
       ignoreInitial: true,
-      interval: this.pluginSettingsComponent.settings.pollingIntervalInMilliseconds,
-      persistent: false,
-      usePolling: this.pluginSettingsComponent.settings.pollingIntervalInMilliseconds > 0
+      persistent: false
     });
 
     this.watcher.on('error', this.handleWatcherError.bind(this));
@@ -257,4 +283,14 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
       this.handleWatcherEvent(normalizeOptionalProperties<ExternalRenameHandlerComponentHandleWatcherEventParams>({ event, path, stats }));
     });
   }
+}
+
+// `chokidar` 6 hands `ignored` absolute paths, so a dot folder anywhere above the vault would hide the whole vault, and it
+// also asks about the vault's own ancestors, which are outside the vault and never a dot file of it.
+function toVaultPath(basePath: string, path: string): string {
+  if (!isAbsolute(path)) {
+    return path;
+  }
+  const vaultPath = relative(basePath, path);
+  return vaultPath === '..' || vaultPath.startsWith(`..${sep}`) || isAbsolute(vaultPath) ? '' : vaultPath;
 }

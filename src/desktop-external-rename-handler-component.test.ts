@@ -3,6 +3,7 @@ import type {
   PluginNoticeComponent,
   PluginNoticeComponentDelayedNotice
 } from '@mnaoumov/obsidian-lib/components/plugin-notice-component';
+import type { Scheduler } from 'chokidar';
 import type { Stats } from 'node:fs';
 import type {
   App as AppOriginal,
@@ -15,7 +16,7 @@ import { noopAsync } from '@mnaoumov/typescript-lib/function';
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { waitForAllAsyncOperations } from '@mnaoumov/typescript-test-toolkit/async-operation-tracking';
 import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
-import { watch } from 'chokidar';
+import { FSWatcher } from 'chokidar';
 import { App } from 'obsidian-test-mocks/obsidian';
 import {
   afterEach,
@@ -76,6 +77,7 @@ interface TestAdapter {
 }
 
 interface WatcherMock {
+  add: (paths: string | string[]) => WatcherMock;
   close: () => Promise<void>;
   on: (event: string, handler: (...$arguments: unknown[]) => void) => WatcherMock;
 }
@@ -123,13 +125,13 @@ const hoisted = vi.hoisted(() => {
 // --- Allowed mocks: non obsidian-lib / non test-mocks modules ---
 
 vi.mock('chokidar', () => ({
-  watch: vi.fn(() => {
-    const watcher: WatcherMock = {
-      close: vi.fn((): Promise<void> => noopAsync()),
-      on: vi.fn((): WatcherMock => watcher)
-    };
-    return watcher;
-  })
+  FSWatcher: vi.fn(
+    class MockFSWatcher implements WatcherMock {
+      public add = vi.fn((): WatcherMock => this);
+      public close = vi.fn((): Promise<void> => noopAsync());
+      public on = vi.fn((): WatcherMock => this);
+    }
+  )
 }));
 
 vi.mock('node:fs/promises', () => {
@@ -240,22 +242,17 @@ async function flush(): Promise<void> {
 }
 
 function getWatcher(index = -1): WatcherMock {
-  const results = vi.mocked(watch).mock.results;
-  const result = results.at(index);
-  if (result?.type !== 'return') {
+  const instance = vi.mocked(FSWatcher).mock.instances.at(index);
+  if (!instance) {
     throw new Error('Watcher was not created.');
   }
-  return castTo<WatcherMock>(result.value);
+  return castTo<WatcherMock>(instance);
 }
 
 function getWatcherHandler(event: string): (...$arguments: unknown[]) => void {
-  const results = vi.mocked(watch).mock.results;
-  for (let index = results.length - 1; index >= 0; index--) {
-    const result = results[index];
-    if (result?.type !== 'return') {
-      continue;
-    }
-    const watcher = castTo<WatcherMock>(result.value);
+  const instances = vi.mocked(FSWatcher).mock.instances;
+  for (let index = instances.length - 1; index >= 0; index--) {
+    const watcher = castTo<WatcherMock>(instances[index]);
     const onMock = castTo<WatcherOnMock>(watcher.on);
     const call = onMock.mock.calls.find((c) => c[0] === event);
     if (call) {
@@ -266,12 +263,20 @@ function getWatcherHandler(event: string): (...$arguments: unknown[]) => void {
 }
 
 function getWatchOptions(): WatchOptions {
-  const calls = vi.mocked(watch).mock.calls;
+  const calls = vi.mocked(FSWatcher).mock.calls;
   const lastCall = calls.at(-1);
   if (!lastCall) {
-    throw new Error('watch was not called.');
+    throw new Error('FSWatcher was not constructed.');
   }
-  return castTo<WatchOptions>(lastCall[1]);
+  return castTo<WatchOptions>(lastCall[0]);
+}
+
+function getWatchScheduler(): Scheduler {
+  const lastCall = vi.mocked(FSWatcher).mock.calls.at(-1);
+  if (!lastCall?.[1]) {
+    throw new Error('FSWatcher was constructed without a scheduler.');
+  }
+  return lastCall[1];
 }
 
 function seedOnRawTarget(strictProxiedObject: object, key: string, value: unknown): void {
@@ -412,7 +417,7 @@ describe('ExternalRenameHandlerComponent', () => {
     // while the patch still suppressed Obsidian's own notifications, and every external change was silently dropped.
     it('should start the watcher without waiting for a settings event', async () => {
       await createReadyComponent();
-      expect(watch).toHaveBeenCalled();
+      expect(FSWatcher).toHaveBeenCalled();
     });
 
     it('should register the settings event handlers so later settings changes re-register the watcher', async () => {
@@ -508,6 +513,16 @@ describe('ExternalRenameHandlerComponent', () => {
       expect(originalOnFileChangeSpy).toHaveBeenCalledWith(realPath);
     });
 
+    // The polling backend of `chokidar` 6 reports a bigint inode, while the map holds the plain number `stat` returns.
+    it('should match a bigint inode against the number one the map holds', async () => {
+      await setup();
+      hoisted.pathInoMapStub.getPath.mockReturnValue('old.md');
+      getWatcherHandler('all')('add', 'renamed.md', { ino: 500n });
+      expect(hoisted.pathInoMapStub.getPath).toHaveBeenCalledWith(500);
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 500, path: 'renamed.md' });
+      expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('old.md');
+    });
+
     it('should handle a rename without a file entry', async () => {
       await setup();
       hoisted.pathInoMapStub.getPath.mockReturnValue('old.md');
@@ -583,21 +598,66 @@ describe('ExternalRenameHandlerComponent', () => {
   describe('registerWatcher', () => {
     it('should create the watcher with the expected options', async () => {
       await createReadyComponent();
-      expect(watch).toHaveBeenCalledWith(
-        '.',
+      expect(FSWatcher).toHaveBeenCalledWith(
         expect.objectContaining({
+          alwaysStat: true,
           atomic: true,
+          backend: 'polling',
           cwd: '/test-vault',
           ignoreInitial: true,
           persistent: false,
-          usePolling: true
-        })
+          pollingBinaryInterval: 2000,
+          pollingInterval: 2000
+        }),
+        expect.anything()
       );
+      expect(getWatcher().add).toHaveBeenCalledWith('.');
+    });
+
+    it('should use the native backend when polling is disabled', async () => {
+      hoisted.settings.pollingIntervalInMilliseconds = 0;
+      await createReadyComponent();
+      expect(FSWatcher).toHaveBeenCalledWith(expect.objectContaining({ backend: 'auto' }), expect.anything());
+      // `chokidar` 6 throws on a polling interval of 0 whatever the backend.
+      expect(getWatchOptions()).not.toHaveProperty('pollingInterval');
+      expect(getWatchOptions()).not.toHaveProperty('pollingBinaryInterval');
+    });
+
+    // `chokidar` 6 arms its timers with the DOM `setTimeout` unless handed a scheduler, and then fails on `unref()`.
+    it('should hand the watcher a scheduler whose timers can be unreferenced and cleared', async () => {
+      await createReadyComponent();
+      const scheduler = getWatchScheduler();
+      const callback = vi.fn();
+      const timer = scheduler.setTimeout(callback, 0);
+      expect(timer.unref()).toBe(timer);
+      expect(timer.ref()).toBe(timer);
+      scheduler.clearTimeout(timer);
+      scheduler.clearTimeout(undefined);
+      await sleep(10);
+      expect(callback).not.toHaveBeenCalled();
+      expect(scheduler.now()).toBeGreaterThan(0);
     });
 
     it('should treat an empty path as the root (not ignored)', async () => {
       await createReadyComponent();
       expect(getWatchOptions().ignored('')).toBe(false);
+    });
+
+    // `chokidar` 6 hands `ignored` absolute paths.
+    it('should judge an absolute path by its part inside the vault', async () => {
+      await createReadyComponent();
+      const { ignored } = getWatchOptions();
+      expect(ignored('/test-vault')).toBe(false);
+      expect(ignored('/test-vault/note.md')).toBe(false);
+      expect(ignored('/test-vault/.hidden-folder/config')).toBe(true);
+    });
+
+    it('should not ignore the vault for a dot folder above it', async () => {
+      adapter.basePath = '/.vaults/test-vault';
+      await createReadyComponent();
+      const { ignored } = getWatchOptions();
+      expect(ignored('/.vaults/test-vault/note.md')).toBe(false);
+      expect(ignored('/.vaults')).toBe(false);
     });
 
     it('should treat a dot path as ignored', async () => {
