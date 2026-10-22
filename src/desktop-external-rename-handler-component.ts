@@ -58,7 +58,7 @@ interface ExternalRenameHandlerComponentHandleDeletionParams {
 interface ExternalRenameHandlerComponentHandleWatcherEventParams {
   readonly event: EventName;
   readonly path: string;
-  // `chokidar` 6 declares `Stats`, but its polling backend hands `add` a bigint inode.
+  // `chokidar` 6 declares `Stats`, but on Windows an `add` from a directory scan carries `BigIntStats`, on either backend.
   readonly stats?: BigIntStats | Stats;
 }
 
