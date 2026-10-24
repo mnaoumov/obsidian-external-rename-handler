@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 4.0.5
+
+- test(demo-vault): floor `CodeScript Toolkit` at 15.0.0
+- docs: say where chokidar 6 hands add a bigint inode
+- build(deps): move to chokidar 6
+- build(deps): move to obsidian-lib 6 and obsidian-dev-toolkit 5
+- docs: name obsidian-lib where comments said dev-utils
+- fix: drop the plugin name from notice text
+- docs: shorten the debugging section
+- fix(demo-vault): load the demo setup helpers from @mnaoumov/obsidian-lib
+- docs(readme): lead the Debugging section with `Advanced Debug Mode`
+- build(deps): float brace-expansion, sharp and fast-uri past their advisories
+- docs: mark plugin names as code
+- refactor(watcher): drop the root fallback after normalizePath
+
 ## 4.0.4
 
 - chore(github): point questions to Discussions from the new-issue page
