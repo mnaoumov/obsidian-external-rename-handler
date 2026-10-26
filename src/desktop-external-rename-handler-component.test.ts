@@ -722,6 +722,33 @@ describe('ExternalRenameHandlerComponent', () => {
       expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('old.md');
     });
 
+    it('should handle a rename whose birth time matches the stored one', async () => {
+      await setup();
+      hoisted.pathInoMapStub.getPath.mockReturnValue('old.md');
+      hoisted.pathInoMapStub.getBirthtime.mockReturnValue(BIRTHTIME_MS);
+      adapter.files['old.md'] = { realpath: '/test-vault/old.md' };
+      getWatcherHandler('all')('add', 'renamed.md', { birthtimeMs: BIRTHTIME_MS + 0.5, ino: 500 });
+      expect(hoisted.pathInoMapStub.getBirthtime).toHaveBeenCalledWith('old.md');
+      expect(onChangeMock).toHaveBeenCalledWith('renamed', 'renamed.md', 'old.md');
+    });
+
+    // Regression test: ext4 hands the inode of a note deleted moments ago to the next new file, and reading that as a
+    // rename sent the links to the deleted note to an unrelated one.
+    it('should read a reused inode whose birth time differs as a delete plus a create', async () => {
+      await setup();
+      hoisted.pathInoMapStub.getPath.mockReturnValue('deleted.md');
+      hoisted.pathInoMapStub.getBirthtime.mockReturnValue(BIRTHTIME_MS);
+      adapter.files['deleted.md'] = { realpath: '/test-vault/deleted.md' };
+      getWatcherHandler('all')('add', 'created.md', { birthtimeMs: BIRTHTIME_MS + 1, ino: 500 });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS + 1, ino: 500, path: 'created.md' });
+      expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('deleted.md');
+      expect(onChangeMock).not.toHaveBeenCalled();
+      expect(adapter.files['deleted.md']).toEqual({ realpath: '/test-vault/deleted.md' });
+      expect(adapter.files['created.md']).toBeUndefined();
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('deleted.md');
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('created.md');
+    });
+
     it('should handle a rename without a file entry', async () => {
       await setup();
       hoisted.pathInoMapStub.getPath.mockReturnValue('old.md');

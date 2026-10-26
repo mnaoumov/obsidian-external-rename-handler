@@ -57,6 +57,12 @@ interface ExternalRenameHandlerComponentHandleDeletionParams {
   readonly realPath: string;
 }
 
+interface ExternalRenameHandlerComponentHandleRenameParams {
+  readonly oldPath: string;
+  readonly path: string;
+  readonly realPath: string;
+}
+
 interface ExternalRenameHandlerComponentHandleWatcherEventParams {
   readonly event: EventName;
   readonly path: string;
@@ -217,6 +223,21 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     this.originalOnFileChange(realPath);
   }
 
+  private handleRename(params: ExternalRenameHandlerComponentHandleRenameParams): void {
+    const { oldPath, path, realPath } = params;
+    const fileEntry = this.fileSystemAdapter.files[oldPath];
+    if (!fileEntry) {
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- Need to delete file entry.
+    delete this.fileSystemAdapter.files[oldPath];
+    fileEntry.realpath = realPath;
+    this.fileSystemAdapter.files[path] = fileEntry;
+    this.app.vault.onChange('renamed', path, oldPath);
+
+    this.originalOnFileChange(oldPath);
+  }
+
   private handleWatcherError(error: unknown): void {
     printError(new Error('File system watcher error', { cause: error }));
     this.originalOnFileChange('/');
@@ -253,21 +274,21 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
           return;
         }
 
-        const isRename = oldPath !== undefined;
-        this.pathInoMap.set({ birthtimeMs: toBirthtimeMs(stats), ino, path });
+        const birthtimeMs = toBirthtimeMs(stats);
+        const oldBirthtimeMs = oldPath === undefined ? undefined : this.pathInoMap.getBirthtime(oldPath);
+        // A different birth time means the file system handed the inode of a file deleted moments ago to an unrelated new
+        // one, as ext4 readily does. That is a delete plus a create, and the delete is reported now, because the map no
+        // longer leads the pending deletion back to the old path. Reuse within the same millisecond still passes as a
+        // rename.
+        const isReusedIno = oldBirthtimeMs !== undefined && oldBirthtimeMs !== birthtimeMs;
+        this.pathInoMap.set({ birthtimeMs, ino, path });
 
-        if (isRename) {
+        if (oldPath !== undefined) {
           this.pathInoMap.deletePath(oldPath);
-
-          const fileEntry = this.fileSystemAdapter.files[oldPath];
-          if (fileEntry) {
-            // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- Need to delete file entry.
-            delete this.fileSystemAdapter.files[oldPath];
-            fileEntry.realpath = realPath;
-            this.fileSystemAdapter.files[path] = fileEntry;
-            this.app.vault.onChange('renamed', path, oldPath);
-
+          if (isReusedIno) {
             this.originalOnFileChange(oldPath);
+          } else {
+            this.handleRename({ oldPath, path, realPath });
           }
         }
 
