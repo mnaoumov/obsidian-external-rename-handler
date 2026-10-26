@@ -19,6 +19,14 @@ const WAIT_TIMEOUT_IN_MILLISECONDS = 20_000;
 const PLUGIN_ID = 'external-rename-handler';
 const ORIGINAL_NOTE_PATH = 'offline-rename-original.md';
 const RENAMED_NOTE_PATH = 'offline-rename-renamed.md';
+// A dot file, so that neither Obsidian nor the plugin indexes the copy before it is swapped in.
+const REPLACEMENT_TEMP_PATH = '.offline-rename-replacement.tmp';
+const REPLACED_CONTENT = 'content replaced by a save that swapped a new copy in';
+
+interface ComponentTreeNode {
+  _children?: ComponentTreeNode[];
+  watcher?: null | WatcherSlice;
+}
 
 interface RenameRecord {
   readonly newPath: string;
@@ -27,6 +35,10 @@ interface RenameRecord {
 
 interface RenameRecorderWindow {
   offlineRenameRecords?: RenameRecord[];
+}
+
+interface WatcherSlice {
+  readyEmitted: boolean;
 }
 
 function getFullPath(path: string): string {
@@ -51,7 +63,12 @@ async function startRecordingRenames(): Promise<void> {
   await evalInObsidian({
     callback({ app }) {
       const recorderWindow = window as RenameRecorderWindow;
+      // One listener for the whole run: each test only empties the records, so none counts a rename twice.
+      const isListening = recorderWindow.offlineRenameRecords !== undefined;
       recorderWindow.offlineRenameRecords = [];
+      if (isListening) {
+        return;
+      }
       app.vault.on('rename', (file, oldPath) => {
         recorderWindow.offlineRenameRecords?.push({ newPath: file.path, oldPath });
       });
@@ -95,9 +112,47 @@ async function waitForVaultToSee(path: string, shouldExist: boolean): Promise<vo
   });
 }
 
+async function waitForVaultToSeeSize(path: string, size: number): Promise<void> {
+  await evalInObsidian({
+    async callback({ app, lib: { waitUntil }, path: notePath, size: expectedSize, WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds }) {
+      await waitUntil({
+        message: `The vault never saw the note ${notePath} at ${String(expectedSize)} bytes`,
+        predicate: () => app.vault.getFileByPath(notePath)?.stat.size === expectedSize,
+        timeoutInMilliseconds
+      });
+    },
+    input: {
+      path,
+      size,
+      WAIT_TIMEOUT_IN_MILLISECONDS
+    },
+    vaultPath: getTemporaryVault().path
+  });
+}
+
+// The watcher starts only once the startup pass is done, so its readiness is when the pass has refreshed the map.
+async function waitForWatcherReady(): Promise<void> {
+  await evalInObsidian({
+    async callback({ app, lib: { waitUntil }, pluginId, WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds }) {
+      function hasReadyWatcher(node: ComponentTreeNode | undefined): boolean {
+        return node?.watcher?.readyEmitted === true || (node?._children ?? []).some((child) => hasReadyWatcher(child));
+      }
+
+      await waitUntil({
+        message: 'The watcher never became ready',
+        predicate: () => hasReadyWatcher(app.plugins.getPlugin(pluginId) as ComponentTreeNode | null ?? undefined),
+        timeoutInMilliseconds
+      });
+    },
+    input: { pluginId: PLUGIN_ID, WAIT_TIMEOUT_IN_MILLISECONDS },
+    vaultPath: getTemporaryVault().path
+  });
+}
+
 describe('Renames made while the plugin was not running', () => {
   afterEach(async () => {
     await setPluginEnabled(true);
+    await rm(getFullPath(REPLACEMENT_TEMP_PATH), { force: true });
     await rm(getFullPath(ORIGINAL_NOTE_PATH), { force: true });
     await rm(getFullPath(RENAMED_NOTE_PATH), { force: true });
     await waitForVaultToSee(ORIGINAL_NOTE_PATH, false);
@@ -113,6 +168,34 @@ describe('Renames made while the plugin was not running', () => {
   it('should report the rename when the plugin loads again', async () => {
     await writeFile(getFullPath(ORIGINAL_NOTE_PATH), 'content', 'utf-8');
     await waitForVaultToSee(ORIGINAL_NOTE_PATH, true);
+
+    await setPluginEnabled(false);
+    await rename(getFullPath(ORIGINAL_NOTE_PATH), getFullPath(RENAMED_NOTE_PATH));
+    await waitForVaultToSee(RENAMED_NOTE_PATH, true);
+    await waitForVaultToSee(ORIGINAL_NOTE_PATH, false);
+
+    await startRecordingRenames();
+    await setPluginEnabled(true);
+
+    const records = await waitForRecordedRename({ newPath: RENAMED_NOTE_PATH, oldPath: ORIGINAL_NOTE_PATH });
+    expect(records.filter((r) => r.newPath === RENAMED_NOTE_PATH)).toHaveLength(1);
+  });
+
+  /*
+   * Regression test: a save that swaps a new copy in for the note gives it a new inode. Made while the plugin was not
+   * running, it went unseen, because the startup pass trusted the inode it had cached for the path, and the note's next
+   * rename was then missed. The modification time and size Obsidian read from the disk tell the pass to look again.
+   */
+  it('should report the rename of a note a save replaced while the plugin was not running', async () => {
+    await writeFile(getFullPath(ORIGINAL_NOTE_PATH), 'content', 'utf-8');
+    await waitForVaultToSee(ORIGINAL_NOTE_PATH, true);
+
+    await setPluginEnabled(false);
+    await writeFile(getFullPath(REPLACEMENT_TEMP_PATH), REPLACED_CONTENT, 'utf-8');
+    await rename(getFullPath(REPLACEMENT_TEMP_PATH), getFullPath(ORIGINAL_NOTE_PATH));
+    await waitForVaultToSeeSize(ORIGINAL_NOTE_PATH, REPLACED_CONTENT.length);
+    await setPluginEnabled(true);
+    await waitForWatcherReady();
 
     await setPluginEnabled(false);
     await rename(getFullPath(ORIGINAL_NOTE_PATH), getFullPath(RENAMED_NOTE_PATH));
