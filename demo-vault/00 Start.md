@@ -14,6 +14,7 @@ If you would rather not leave Obsidian, every walkthrough has a button that does
 - [02 Moving and folders](<./02 Moving and folders.md>)
 - [03 How it works](<./03 How it works.md>)
 - [04 Settings](<./04 Settings.md>)
+- [05 File systems](<./05 File systems.md>)
 
 ## Materials
 
