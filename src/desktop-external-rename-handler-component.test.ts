@@ -625,6 +625,8 @@ describe('ExternalRenameHandlerComponent', () => {
   });
 
   describe('handleWatcherEvent', () => {
+    const BIRTHTIME_MS = 1234;
+
     async function setup(): Promise<void> {
       await createReadyComponent();
     }
@@ -776,9 +778,34 @@ describe('ExternalRenameHandlerComponent', () => {
       expect(hoisted.pathInoMapStub.deletePath).not.toHaveBeenCalled();
     });
 
-    it('should forward unknown events to the original onFileChange', async () => {
+    it('should forward a change without stats to the original onFileChange', async () => {
       await setup();
       getWatcherHandler('all')('change', 'changed.md');
+      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalled();
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('changed.md');
+    });
+
+    it('should leave the map alone on a change that kept the inode', async () => {
+      await setup();
+      hoisted.pathInoMapStub.getIno.mockReturnValue(800);
+      getWatcherHandler('all')('change', 'changed.md', { birthtimeMs: BIRTHTIME_MS, ino: 800 });
+      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalled();
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('changed.md');
+    });
+
+    // Regression test: a save that renames a temp file over the note gives it a new inode, reported as a `change`. The map
+    // kept the old one, so the note's next external rename arrived as an `add` of an unknown inode: a delete plus a create.
+    it('should record the new inode of a note a save replaced, so its next rename is still a rename', async () => {
+      await setup();
+      hoisted.pathInoMapStub.getIno.mockReturnValue(800);
+      getWatcherHandler('all')('change', 'keep.md', { birthtimeMs: BIRTHTIME_MS + 0.75, ino: 801n });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS, ino: 801, path: 'keep.md' });
+      expect(originalOnFileChangeSpy).toHaveBeenCalledWith('keep.md');
+    });
+
+    it('should forward unknown events to the original onFileChange', async () => {
+      await setup();
+      getWatcherHandler('all')('raw', 'changed.md');
       expect(originalOnFileChangeSpy).toHaveBeenCalledWith('changed.md');
     });
   });

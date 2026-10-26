@@ -275,6 +275,18 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
         break;
       }
+      case 'change': {
+        // A save that writes a temp file and renames it over the note gives the note a new inode, which `atomic` reports
+        // as a `change`. Left stale, the old inode turns the note's next external rename into a delete plus a create.
+        if (stats) {
+          const ino = Number(stats.ino);
+          if (this.pathInoMap.getIno(path) !== ino) {
+            this.pathInoMap.set({ birthtimeMs: toBirthtimeMs(stats), ino, path });
+          }
+        }
+        this.originalOnFileChange(realPath);
+        break;
+      }
       case 'unlink':
       case 'unlinkDir': {
         const ino = this.pathInoMap.getIno(path);

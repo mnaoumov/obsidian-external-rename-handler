@@ -84,7 +84,7 @@ What goes wrong where it does not work:
 - **A rename is missed**, and you are told nothing. Obsidian sees a delete and a create, exactly as it would without the plugin, and the links to the old name are left unresolved. That is what happens to a folder renamed on the Synology share with the default `deletionRenameDetectionTimeoutInMilliseconds` of `500` (5 times out of 6), to every rename on a share without polling (the native watcher reported no change at all there), and to a rename on a Linux FAT32 drive made while Obsidian was closed. On a network share, raise the timeout to `3000` (3 times out of 3) and keep polling on.
 - **A rename is reported that never happened.** ext4 gives a freed inode to the next new file straight away, so a note deleted and an unrelated note created within the timeout are reported as a rename of the first into the second, and with `Advanced Rename and Delete Handler` installed the links to the deleted note are rewritten to the new one. A rename made while Obsidian was closed is protected from this by the saved creation time.
 
-On every file system measured, a save that writes a new copy and swaps it in for the note gives the note a new inode. That save is still seen as an edit, but the next rename of that note made outside Obsidian is missed.
+On every file system measured, a save that writes a new copy and swaps it in for the note gives the note a new inode. While Obsidian is running, the plugin sees that save as an edit and records the new inode, so a later rename is still recognized. A save like that made while Obsidian was closed is not seen: the next rename of that note made outside Obsidian is missed, until the note is changed again with Obsidian open.
 
 ## Installation
 
