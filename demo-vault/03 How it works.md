@@ -18,7 +18,7 @@ It is careful about what counts:
 - The old path must be gone. If a file sits there again, or the old path is a second name of the same file (a hard link), the links to it still work, and nothing is reported.
 - The file's creation time must match the one saved with the inode. Some file systems (ext4 on Linux, for one) give a freed inode to the next new file, so a deleted note and an unrelated new one can share it. The creation time tells them apart.
 - A copy is a new file with a new inode, so it is never taken for a rename. A file moved out of the vault is simply gone.
-- A file saved by writing a new copy and swapping it in gets a new inode, so a rename of it is not recognized.
+- A file saved by writing a new copy and swapping it in while Obsidian was closed gets a new inode the plugin never saw, so a rename of it is not recognized. The same save made while Obsidian is running is followed.
 
 Files the plugin has not seen since an update to **4.1.0** carry no saved creation time yet. They get one at the next start, so the first restart after the update cannot recognize them. The `shouldDetectOfflineRenames` setting in [04 Settings](<./04 Settings.md>) turns this whole check off.
 
@@ -46,7 +46,7 @@ What goes wrong where it does not work:
 - **A rename is missed**, and you are told nothing. Obsidian sees a delete and a create, exactly as it would without the plugin, and the links to the old name are left unresolved. That is what happens to a folder renamed on the Synology share with the default `deletionRenameDetectionTimeoutInMilliseconds` of `500` (5 times out of 6), to every rename on a share without polling (the native watcher reported no change at all there), and to a rename on a Linux FAT32 drive made while Obsidian was closed. On a network share, raise the timeout to `3000` (3 times out of 3) and keep polling on.
 - **A rename is reported that never happened.** ext4 gives a freed inode to the next new file straight away, so a note deleted and an unrelated note created within the timeout are reported as a rename of the first into the second, and with `Advanced Rename and Delete Handler` installed the links to the deleted note are rewritten to the new one. A rename made while Obsidian was closed is protected from this by the saved creation time.
 
-On every file system measured, a save that writes a new copy and swaps it in for the note gives the note a new inode. That save is still seen as an edit, but the next rename of that note made outside Obsidian is missed.
+On every file system measured, a save that writes a new copy and swaps it in for the note gives the note a new inode. While Obsidian is running, the plugin sees that save as an edit and records the new inode, so a later rename is still recognized. A save like that made while Obsidian was closed is not seen: the next rename of that note made outside Obsidian is missed, until the note is changed again with Obsidian open.
 
 ## Limitations (be honest with yourself)
 

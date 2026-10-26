@@ -26,6 +26,8 @@ const WAIT_TIMEOUT_IN_MILLISECONDS = 20_000;
 
 const CREATED_NOTE_PATH = 'external-change-detection-created.md';
 const RENAMED_NOTE_PATH = 'external-change-detection-renamed.md';
+// A dot file, as editors name their temp files, so neither Obsidian nor the plugin indexes it.
+const TEMP_NOTE_PATH = '.external-change-detection-created.md.tmp';
 
 // Obsidian keys the vault by the NFC form of a name, while the file on disk keeps its decomposed (NFD) one.
 const DECOMPOSED_CREATED_NOTE_PATH = 'external-change-detection-й-created.md';
@@ -147,6 +149,32 @@ async function waitForOpenLeafToShow(path: string): Promise<void> {
   });
 }
 
+async function waitForVaultContent(path: string, expectedContent: string): Promise<string> {
+  return await evalInObsidian({
+    async callback({ app, expectedContent: content, lib: { waitUntil }, path: notePath, WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds }) {
+      await waitUntil({
+        message: `The vault never picked up the external edit of ${notePath}`,
+        // `vault.read` reads the disk, so it sees an edit before the watcher does. The size is the vault's own record,
+        // which only the watcher's event updates.
+        predicate: async () => {
+          const file = app.vault.getFileByPath(notePath);
+          return file ? file.stat.size === new TextEncoder().encode(content).length && (await app.vault.read(file)) === content : false;
+        },
+        timeoutInMilliseconds
+      });
+
+      const file = app.vault.getFileByPath(notePath);
+      return file ? await app.vault.read(file) : '';
+    },
+    input: {
+      expectedContent,
+      path,
+      WAIT_TIMEOUT_IN_MILLISECONDS
+    },
+    vaultPath: getTemporaryVault().path
+  });
+}
+
 async function waitForVaultToSee(path: string, shouldExist: boolean): Promise<void> {
   await evalInObsidian({
     async callback({ app, lib: { waitUntil }, path: notePath, shouldExist: isExpectedToExist, WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds }) {
@@ -181,6 +209,7 @@ describe.each(BACKENDS)('External change detection on the $backend backend', ({ 
   afterEach(async () => {
     await removeExternally(CREATED_NOTE_PATH);
     await removeExternally(RENAMED_NOTE_PATH);
+    await removeExternally(TEMP_NOTE_PATH);
     await removeExternally(DECOMPOSED_CREATED_NOTE_PATH.normalize('NFD'));
     await removeExternally(DECOMPOSED_RENAMED_NOTE_PATH.normalize('NFD'));
     await waitForVaultToSee(CREATED_NOTE_PATH, false);
@@ -215,35 +244,25 @@ describe.each(BACKENDS)('External change detection on the $backend backend', ({ 
 
     await writeExternally(CREATED_NOTE_PATH, APPENDED_CONTENT);
 
-    const content = await evalInObsidian({
-      async callback({
-        app,
-        APPENDED_CONTENT: expectedContent,
-        CREATED_NOTE_PATH: notePath,
-        lib: { waitUntil },
-        WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds
-      }) {
-        await waitUntil({
-          message: `The vault never picked up the external edit of ${notePath}`,
-          predicate: async () => {
-            const file = app.vault.getFileByPath(notePath);
-            return file ? (await app.vault.read(file)) === expectedContent : false;
-          },
-          timeoutInMilliseconds
-        });
+    expect(await waitForVaultContent(CREATED_NOTE_PATH, APPENDED_CONTENT)).toBe(APPENDED_CONTENT);
+  });
 
-        const file = app.vault.getFileByPath(notePath);
-        return file ? await app.vault.read(file) : '';
-      },
-      input: {
-        APPENDED_CONTENT,
-        CREATED_NOTE_PATH,
-        WAIT_TIMEOUT_IN_MILLISECONDS
-      },
-      vaultPath: getTemporaryVault().path
-    });
+  // A save that writes a temp file and renames it over the note gives the note a new inode. The plugin used to keep the old
+  // one, so the note's next external rename arrived as a delete plus a create, and the leaf showing it was closed.
+  it('should reflect an externally renamed note after a save that replaced it', async () => {
+    await writeExternally(CREATED_NOTE_PATH, INITIAL_CONTENT);
+    await waitForVaultToSee(CREATED_NOTE_PATH, true);
+    await openInNewLeaf(CREATED_NOTE_PATH);
 
-    expect(content).toBe(APPENDED_CONTENT);
+    await writeExternally(TEMP_NOTE_PATH, APPENDED_CONTENT);
+    await rename(getFullPath(TEMP_NOTE_PATH), getFullPath(CREATED_NOTE_PATH));
+    await waitForVaultContent(CREATED_NOTE_PATH, APPENDED_CONTENT);
+
+    await rename(getFullPath(CREATED_NOTE_PATH), getFullPath(RENAMED_NOTE_PATH));
+
+    await waitForVaultToSee(RENAMED_NOTE_PATH, true);
+    await waitForVaultToSee(CREATED_NOTE_PATH, false);
+    await waitForOpenLeafToShow(RENAMED_NOTE_PATH);
   });
 
   it('should reflect an externally renamed note', async () => {
