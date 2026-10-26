@@ -10,12 +10,14 @@ import type {
 } from 'node:fs';
 import type {
   App,
-  FileSystemAdapter
+  FileSystemAdapter,
+  TAbstractFile
 } from 'obsidian';
 
 import { registerAsyncEvent } from '@mnaoumov/obsidian-lib/components/async-events-component';
 import { LayoutReadyComponent } from '@mnaoumov/obsidian-lib/components/layout-ready-component';
 import { loop } from '@mnaoumov/obsidian-lib/loop';
+import { ensureMetadataCacheReady } from '@mnaoumov/obsidian-lib/metadata-cache';
 import { convertAsyncToSync } from '@mnaoumov/typescript-lib/async';
 import { printError } from '@mnaoumov/typescript-lib/error';
 import { normalizeOptionalProperties } from '@mnaoumov/typescript-lib/object-utils';
@@ -62,6 +64,12 @@ interface ExternalRenameHandlerComponentHandleWatcherEventParams {
   readonly stats?: BigIntStats | Stats;
 }
 
+interface OfflineRename {
+  readonly file: TAbstractFile;
+  readonly newPath: string;
+  readonly oldPath: string;
+}
+
 export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
   private _originalOnFileChange?: OnFileChangeFunction;
 
@@ -102,6 +110,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     }
 
     const cachedPaths = new Set<string>(this.pathInoMap.getPaths());
+    const offlineRenames: OfflineRename[] = [];
 
     await loop({
       abortSignal: this.abortSignalComponent.abortSignal,
@@ -109,13 +118,25 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
       items: this.app.vault.getAllLoadedFiles(),
       pluginNoticeComponent: this.pluginNoticeComponent,
       processItem: async (file) => {
-        if (cachedPaths.delete(file.path) || isDotFile(file.path)) {
+        const isCached = cachedPaths.delete(file.path);
+        if (isDotFile(file.path)) {
+          return;
+        }
+        // A path recorded before birth times were persisted is stat-ed once more, so that a later offline rename of
+        // it can be vouched for.
+        if (isCached && this.pathInoMap.getBirthtime(file.path) !== undefined) {
           return;
         }
         // `getFullPath`, never `getFullRealPath`: `file.path` is normalized (NFC), and only `getFullPath` maps it back to
         // the real on-disk name. A decomposed (NFD) name would otherwise point at a file that does not exist.
         const stats = await stat(this.fileSystemAdapter.getFullPath(file.path));
-        this.pathInoMap.set({ ino: stats.ino, path: file.path });
+        if (!isCached) {
+          const oldPath = this.getOfflineRenameOldPath(file.path, stats);
+          if (oldPath !== null) {
+            offlineRenames.push({ file, newPath: file.path, oldPath });
+          }
+        }
+        this.pathInoMap.set({ birthtimeMs: toBirthtimeMs(stats), ino: stats.ino, path: file.path });
       },
       progressBarTitle: 'Initializing...',
       shouldShowProgressBar: true
@@ -156,6 +177,35 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         await this.registerWatcher();
       })
     );
+
+    await this.reportOfflineRenames(offlineRenames);
+  }
+
+  /**
+   * Finds the path a file had before it was renamed or moved while Obsidian was closed.
+   *
+   * Obsidian builds its vault from the disk at startup, so such a file simply exists at its new path, and the links to
+   * its old path are left unresolved. Its inode is what still ties the two paths together.
+   *
+   * @param path - The path of a file the map did not know.
+   * @param stats - The stats of that file.
+   * @returns The old path, or `null` when the file is not a clean offline rename.
+   */
+  private getOfflineRenameOldPath(path: string, stats: Stats): null | string {
+    const oldPath = this.pathInoMap.getPath(stats.ino);
+    if (oldPath === undefined || oldPath === path) {
+      return null;
+    }
+
+    // The old path still taken means a hard link, or a new file created where the renamed one used to be. Either way
+    // the links to the old path still resolve, and there is nothing to report.
+    if (this.app.vault.getAbstractFileByPath(oldPath)) {
+      return null;
+    }
+
+    // A different birth time means the file system handed a freed inode to an unrelated new file, as ext4 readily does.
+    // An entry written before birth times were persisted cannot vouch for anything.
+    return this.pathInoMap.getBirthtime(oldPath) === toBirthtimeMs(stats) ? oldPath : null;
   }
 
   private handleDeletion(params: ExternalRenameHandlerComponentHandleDeletionParams): void {
@@ -204,7 +254,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         }
 
         const isRename = oldPath !== undefined;
-        this.pathInoMap.set({ ino, path });
+        this.pathInoMap.set({ birthtimeMs: toBirthtimeMs(stats), ino, path });
 
         if (isRename) {
           this.pathInoMap.deletePath(oldPath);
@@ -283,6 +333,48 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
       this.handleWatcherEvent(normalizeOptionalProperties<ExternalRenameHandlerComponentHandleWatcherEventParams>({ event, path, stats }));
     });
   }
+
+  /**
+   * Reports the renames made while Obsidian was closed the way a live rename is reported: as a vault `rename` event fired
+   * once the file is already at its new path, which is what the link handler, bookmarks and the recent files react to.
+   *
+   * It waits for the metadata cache to be clean first. Obsidian's own startup pass drops the cache entry of every path that
+   * is gone, so by then nothing in the cache still describes the old path, and its `rename` handler has nothing to undo.
+   *
+   * @param offlineRenames - The renames found while indexing the vault.
+   */
+  private async reportOfflineRenames(offlineRenames: readonly OfflineRename[]): Promise<void> {
+    if (offlineRenames.length === 0 || !this.pluginSettingsComponent.settings.shouldDetectOfflineRenames) {
+      return;
+    }
+
+    await ensureMetadataCacheReady(this.app);
+    if (this.abortSignalComponent.abortSignal.aborted) {
+      return;
+    }
+
+    let reportedCount = 0;
+    for (const { file, newPath, oldPath } of offlineRenames) {
+      // A live change made while the cache was still being built can have moved either path on.
+      if (file.path !== newPath || this.app.vault.getAbstractFileByPath(oldPath)) {
+        continue;
+      }
+      this.app.vault.trigger('rename', file, oldPath);
+      reportedCount++;
+    }
+
+    if (reportedCount > 0) {
+      this.pluginNoticeComponent.showNotice(
+        `Detected ${String(reportedCount)} ${reportedCount === 1 ? 'rename' : 'renames'} made while Obsidian was closed.`
+      );
+    }
+  }
+}
+
+// Whole milliseconds, because a bigint `birthtimeMs` is truncated to them while the plain one carries a fraction, and the
+// two must compare equal for the same file.
+function toBirthtimeMs(stats: BigIntStats | Stats): number {
+  return Math.floor(Number(stats.birthtimeMs));
 }
 
 // `chokidar` 6 hands `ignored` absolute paths, so a dot folder anywhere above the vault would hide the whole vault, and it

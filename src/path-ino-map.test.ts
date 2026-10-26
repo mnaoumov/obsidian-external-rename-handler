@@ -61,7 +61,7 @@ describe('PathInoMap', () => {
     it('should not throw out of the debounced flush when it runs before init', () => {
       vi.useFakeTimers();
       const map = new PathInoMap();
-      map.set({ ino: 1, path: '/test.md' });
+      map.set({ birthtimeMs: 0, ino: 1, path: '/test.md' });
       // The throw used to escape the debounce as an uncaught error. It is reported through the real `printError` now.
       expect(() => {
         vi.advanceTimersByTime(DEBOUNCE_MS);
@@ -78,47 +78,71 @@ describe('PathInoMap', () => {
     });
 
     it('should set and retrieve path-ino mappings', () => {
-      pathInoMap.set({ ino: 100, path: '/test.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/test.md' });
       expect(pathInoMap.getIno('/test.md')).toBe(100);
       expect(pathInoMap.getPath(100)).toBe('/test.md');
     });
 
     it('should return all paths', () => {
-      pathInoMap.set({ ino: 1, path: '/a.md' });
-      pathInoMap.set({ ino: 2, path: '/b.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 1, path: '/a.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 2, path: '/b.md' });
       expect(pathInoMap.getPaths()).toEqual(['/a.md', '/b.md']);
     });
 
     it('should delete a path', () => {
-      pathInoMap.set({ ino: 100, path: '/test.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/test.md' });
       pathInoMap.deletePath('/test.md');
       expect(pathInoMap.getIno('/test.md')).toBeUndefined();
       expect(pathInoMap.getPath(100)).toBeUndefined();
     });
 
     it('should clear all entries', () => {
-      pathInoMap.set({ ino: 1, path: '/a.md' });
-      pathInoMap.set({ ino: 2, path: '/b.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 1, path: '/a.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 2, path: '/b.md' });
       pathInoMap.clear();
       expect(pathInoMap.getPaths()).toEqual([]);
     });
 
     it('should handle rename by replacing old path for same ino', () => {
-      pathInoMap.set({ ino: 100, path: '/old.md' });
-      pathInoMap.set({ ino: 100, path: '/new.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/old.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/new.md' });
       expect(pathInoMap.getPath(100)).toBe('/new.md');
       expect(pathInoMap.getIno('/old.md')).toBeUndefined();
     });
 
     it('should handle set when oldPath equals path', () => {
-      pathInoMap.set({ ino: 100, path: '/same.md' });
-      pathInoMap.set({ ino: 100, path: '/same.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/same.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/same.md' });
       expect(pathInoMap.getPath(100)).toBe('/same.md');
+    });
+
+    it('should keep the birth time of a path', () => {
+      pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/test.md' });
+      expect(pathInoMap.getBirthtime('/test.md')).toBe(1234);
+    });
+
+    it('should move the birth time with a rename', () => {
+      pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/old.md' });
+      pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/new.md' });
+      expect(pathInoMap.getBirthtime('/old.md')).toBeUndefined();
+      expect(pathInoMap.getBirthtime('/new.md')).toBe(1234);
+    });
+
+    it('should forget the birth time of a deleted path', () => {
+      pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/test.md' });
+      pathInoMap.deletePath('/test.md');
+      expect(pathInoMap.getBirthtime('/test.md')).toBeUndefined();
+    });
+
+    it('should forget every birth time on clear', () => {
+      pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/test.md' });
+      pathInoMap.clear();
+      expect(pathInoMap.getBirthtime('/test.md')).toBeUndefined();
     });
 
     it('should flush store actions on debounce', () => {
       vi.useFakeTimers();
-      pathInoMap.set({ ino: 100, path: '/test.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/test.md' });
       expect(() => {
         vi.advanceTimersByTime(DEBOUNCE_MS);
       }).not.toThrow();
@@ -126,8 +150,8 @@ describe('PathInoMap', () => {
 
     it('should flush rename store actions including old path deletion', () => {
       vi.useFakeTimers();
-      pathInoMap.set({ ino: 100, path: '/old.md' });
-      pathInoMap.set({ ino: 100, path: '/new.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/old.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/new.md' });
       expect(() => {
         vi.advanceTimersByTime(DEBOUNCE_MS);
       }).not.toThrow();
@@ -135,7 +159,7 @@ describe('PathInoMap', () => {
 
     it('should flush clear and delete store actions', () => {
       vi.useFakeTimers();
-      pathInoMap.set({ ino: 1, path: '/a.md' });
+      pathInoMap.set({ birthtimeMs: 0, ino: 1, path: '/a.md' });
       pathInoMap.deletePath('/a.md');
       pathInoMap.clear();
       expect(() => {
@@ -151,7 +175,7 @@ describe('PathInoMap', () => {
 
       const map1 = new PathInoMap();
       await map1.init(app);
-      map1.set({ ino: 42, path: '/existing.md' });
+      map1.set({ birthtimeMs: 0, ino: 42, path: '/existing.md' });
       await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
 
       vi.useRealTimers();
@@ -161,6 +185,49 @@ describe('PathInoMap', () => {
       expect(map2.getIno('/existing.md')).toBe(42);
       expect(map2.getPath(42)).toBe('/existing.md');
     });
+
+    it('should load the persisted birth time', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const app = createUniqueApp();
+
+      const map1 = new PathInoMap();
+      await map1.init(app);
+      map1.set({ birthtimeMs: 1234, ino: 42, path: '/existing.md' });
+      await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+
+      vi.useRealTimers();
+
+      const map2 = new PathInoMap();
+      await map2.init(app);
+      expect(map2.getBirthtime('/existing.md')).toBe(1234);
+    });
+
+    // An entry written before 4.1.0 carries no birth time, and must not read as one recorded as 0.
+    it('should leave the birth time unknown for an entry written without one', async () => {
+      const app = createUniqueApp();
+      const seed = new PathInoMap();
+      await seed.init(app);
+      seed[Symbol.dispose]();
+
+      const openRequest = window.indexedDB.open(`${app.appId}/external-rename-handler`, 1);
+      await new Promise<void>((resolve) => {
+        openRequest.addEventListener('success', () => {
+          const database = openRequest.result;
+          const transaction = database.transaction('path-ino', 'readwrite');
+          transaction.objectStore('path-ino').add({ ino: 42, path: '/legacy.md' });
+          transaction.addEventListener('complete', () => {
+            database.close();
+            resolve();
+          });
+        });
+      });
+
+      const map = new PathInoMap();
+      await map.init(app);
+      expect(map.getIno('/legacy.md')).toBe(42);
+      expect(map.getBirthtime('/legacy.md')).toBeUndefined();
+      map[Symbol.dispose]();
+    });
   });
 
   describe('dispose', () => {
@@ -169,7 +236,7 @@ describe('PathInoMap', () => {
       const app = createUniqueApp();
 
       const map = new PathInoMap();
-      map.set({ ino: 1, path: '/queued-before-init.md' });
+      map.set({ birthtimeMs: 0, ino: 1, path: '/queued-before-init.md' });
       // The flush fails - there is no connection yet - and must NOT discard the action.
       vi.advanceTimersByTime(DEBOUNCE_MS);
 
@@ -190,7 +257,7 @@ describe('PathInoMap', () => {
 
       const map = new PathInoMap();
       await map.init(app);
-      map.set({ ino: 7, path: '/pending.md' });
+      map.set({ birthtimeMs: 0, ino: 7, path: '/pending.md' });
       map[Symbol.dispose]();
 
       // The debouncer is cancelled, so nothing fires into the closed connection.
@@ -216,7 +283,7 @@ describe('PathInoMap', () => {
       map[Symbol.dispose]();
 
       // A store action arriving after teardown is dropped rather than queued against a closed connection.
-      map.set({ ino: 9, path: '/after-dispose.md' });
+      map.set({ birthtimeMs: 0, ino: 9, path: '/after-dispose.md' });
       expect(() => {
         vi.advanceTimersByTime(DEBOUNCE_MS);
       }).not.toThrow();

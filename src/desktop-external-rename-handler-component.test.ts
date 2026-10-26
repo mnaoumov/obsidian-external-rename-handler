@@ -53,10 +53,15 @@ interface FileEntry {
   realpath: string;
 }
 
+interface MutablePathFile {
+  path: string;
+}
+
 interface PathInoMapStub {
   [Symbol.dispose]: Mock<() => void>;
   clear: Mock<() => void>;
   deletePath: Mock<(path: string) => void>;
+  getBirthtime: Mock<(path: string) => number | undefined>;
   getIno: Mock<(path: string) => number | undefined>;
   getPath: Mock<(ino: number) => string | undefined>;
   getPaths: Mock<() => string[]>;
@@ -65,6 +70,7 @@ interface PathInoMapStub {
 }
 
 interface SetParams {
+  readonly birthtimeMs: number;
   readonly ino: number;
   readonly path: string;
 }
@@ -102,6 +108,7 @@ const hoisted = vi.hoisted(() => {
   const pathInoMapStub: PathInoMapStub = {
     clear: vi.fn(),
     deletePath: vi.fn(),
+    getBirthtime: vi.fn((): number | undefined => undefined),
     getIno: vi.fn((): number | undefined => undefined),
     getPath: vi.fn((): string | undefined => undefined),
     getPaths: vi.fn((): string[] => []),
@@ -116,9 +123,10 @@ const hoisted = vi.hoisted(() => {
     pathInoMapStub,
     settings: {
       deletionRenameDetectionTimeoutInMilliseconds: 500,
-      pollingIntervalInMilliseconds: 2000
+      pollingIntervalInMilliseconds: 2000,
+      shouldDetectOfflineRenames: true
     },
-    stat: vi.fn((): Promise<Pick<Stats, 'ino'>> => Promise.resolve({ ino: ROOT_INO }))
+    stat: vi.fn<(path: string) => Promise<Pick<Stats, 'birthtimeMs' | 'ino'>>>(() => Promise.resolve({ birthtimeMs: 0, ino: ROOT_INO }))
   };
 });
 
@@ -149,6 +157,7 @@ vi.mock('./path-ino-map.ts', () => ({
   PathInoMap: class {
     public clear = hoisted.pathInoMapStub.clear;
     public deletePath = hoisted.pathInoMapStub.deletePath;
+    public getBirthtime = hoisted.pathInoMapStub.getBirthtime;
     public getIno = hoisted.pathInoMapStub.getIno;
     public getPath = hoisted.pathInoMapStub.getPath;
     public getPaths = hoisted.pathInoMapStub.getPaths;
@@ -166,7 +175,10 @@ let adapter: TestAdapter;
 let originalOnFileChangeSpy: Mock<(path: null | string) => void>;
 let capturedLayoutReadyCallback: (() => void) | undefined;
 let onChangeMock: ReturnType<typeof vi.fn>;
+let triggerMock: ReturnType<typeof vi.fn>;
+let showNoticeMock: Mock<PluginNoticeComponent['showNotice']>;
 let loadedFiles: TAbstractFile[];
+let abortController: AbortController;
 
 function createAdapter(): TestAdapter {
   originalOnFileChangeSpy = vi.fn();
@@ -189,12 +201,23 @@ function createApp(): AppOriginal {
   onChangeMock = vi.fn();
   seedOnRawTarget(newApp.vault, 'onChange', onChangeMock);
   seedOnRawTarget(newApp.vault, 'getAllLoadedFiles', vi.fn(() => loadedFiles));
+  seedOnRawTarget(newApp.vault, 'getAbstractFileByPath', vi.fn((path: string) => loadedFiles.find((file) => file.path === path) ?? null));
+  triggerMock = vi.fn();
+  seedOnRawTarget(newApp.vault, 'trigger', triggerMock);
+  seedOnRawTarget(
+    newApp.metadataCache,
+    'onCleanCache',
+    vi.fn((callback: () => void) => {
+      callback();
+    })
+  );
 
   castTo<AppGlobal>(window).app = newApp;
   return newApp;
 }
 
 function createComponent(): ExternalRenameHandlerComponent {
+  abortController = new AbortController();
   const on = castTo<PluginSettingsComponent['on']>(vi.fn((event: string, handler: () => Promise<void>): EventRef => {
     if (event === 'loadSettings') {
       hoisted.capturedLoadSettingsHandlers.push(handler);
@@ -209,7 +232,9 @@ function createComponent(): ExternalRenameHandlerComponent {
     settings: hoisted.settings
   });
 
+  showNoticeMock = vi.fn<PluginNoticeComponent['showNotice']>();
   const pluginNoticeComponent = strictProxy<PluginNoticeComponent>({
+    showNotice: showNoticeMock,
     showNoticeAfterDelay: vi.fn(() =>
       strictProxy<PluginNoticeComponentDelayedNotice>({
         setContent: vi.fn(),
@@ -219,7 +244,7 @@ function createComponent(): ExternalRenameHandlerComponent {
   });
 
   return new ExternalRenameHandlerComponent({
-    abortSignalComponent: strictProxy<AbortSignalComponent>({ abortSignal: new AbortController().signal }),
+    abortSignalComponent: strictProxy<AbortSignalComponent>({ abortSignal: abortController.signal }),
     app,
     fileSystemAdapter: castTo<FileSystemAdapterOriginal>(adapter),
     pluginNoticeComponent,
@@ -298,15 +323,17 @@ async function triggerLayoutReady(): Promise<void> {
 describe('ExternalRenameHandlerComponent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    hoisted.pathInoMapStub.getBirthtime.mockReturnValue(undefined);
     hoisted.capturedLoadSettingsHandlers.length = 0;
     hoisted.capturedSaveSettingsHandlers.length = 0;
     hoisted.pathInoMapStub.getIno.mockReturnValue(undefined);
     hoisted.pathInoMapStub.getPath.mockReturnValue(undefined);
     hoisted.pathInoMapStub.getPaths.mockReturnValue([]);
     hoisted.pathInoMapStub.init.mockResolvedValue(undefined);
-    hoisted.stat.mockResolvedValue({ ino: ROOT_INO });
+    hoisted.stat.mockResolvedValue({ birthtimeMs: 0, ino: ROOT_INO });
     hoisted.settings.deletionRenameDetectionTimeoutInMilliseconds = 500;
     hoisted.settings.pollingIntervalInMilliseconds = 2000;
+    hoisted.settings.shouldDetectOfflineRenames = true;
     capturedLayoutReadyCallback = undefined;
     loadedFiles = [];
     app = createApp();
@@ -356,14 +383,14 @@ describe('ExternalRenameHandlerComponent', () => {
 
     it('should clear the map when the root ino does not match', async () => {
       hoisted.pathInoMapStub.getIno.mockReturnValue(999);
-      hoisted.stat.mockResolvedValue({ ino: ROOT_INO });
+      hoisted.stat.mockResolvedValue({ birthtimeMs: 0, ino: ROOT_INO });
       await createReadyComponent();
       expect(hoisted.pathInoMapStub.clear).toHaveBeenCalled();
     });
 
     it('should not clear the map when the root ino matches', async () => {
       hoisted.pathInoMapStub.getIno.mockReturnValue(ROOT_INO);
-      hoisted.stat.mockResolvedValue({ ino: ROOT_INO });
+      hoisted.stat.mockResolvedValue({ birthtimeMs: 0, ino: ROOT_INO });
       await createReadyComponent();
       expect(hoisted.pathInoMapStub.clear).not.toHaveBeenCalled();
     });
@@ -371,10 +398,11 @@ describe('ExternalRenameHandlerComponent', () => {
     it('should skip cached paths while indexing loaded files', async () => {
       loadedFiles = [castTo<TAbstractFile>({ path: '/cached.md' }), castTo<TAbstractFile>({ path: '/new.md' })];
       hoisted.pathInoMapStub.getPaths.mockReturnValue(['/cached.md']);
-      hoisted.stat.mockResolvedValue({ ino: 200 });
+      hoisted.pathInoMapStub.getBirthtime.mockReturnValue(0);
+      hoisted.stat.mockResolvedValue({ birthtimeMs: 0, ino: 200 });
       await createReadyComponent();
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 200, path: '/new.md' });
-      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalledWith({ ino: 200, path: '/cached.md' });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith(expect.objectContaining({ ino: 200, path: '/new.md' }));
+      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalledWith(expect.objectContaining({ ino: 200, path: '/cached.md' }));
     });
 
     // Regression test for GH #5: `file.path` is normalized (NFC), so a decomposed (NFD) name on disk exists only under
@@ -385,22 +413,22 @@ describe('ExternalRenameHandlerComponent', () => {
       const realPath = normalizedPath.normalize('NFD');
       adapter.getFullPath = (path: string): string => `/test-vault/${path === normalizedPath ? realPath : path}`;
       loadedFiles = [castTo<TAbstractFile>({ path: normalizedPath })];
-      hoisted.stat.mockResolvedValue({ ino: 200 });
+      hoisted.stat.mockResolvedValue({ birthtimeMs: 0, ino: 200 });
       await createReadyComponent();
       expect(hoisted.stat).toHaveBeenCalledWith(`/test-vault/${realPath}`);
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 200, path: normalizedPath });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith(expect.objectContaining({ ino: 200, path: normalizedPath }));
     });
 
     it('should skip dot files while indexing loaded files', async () => {
       loadedFiles = [castTo<TAbstractFile>({ path: '.dot-folder/config' })];
-      hoisted.stat.mockResolvedValue({ ino: 200 });
+      hoisted.stat.mockResolvedValue({ birthtimeMs: 0, ino: 200 });
       await createReadyComponent();
       expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalled();
     });
 
     it('should clean up stale cached paths', async () => {
       hoisted.pathInoMapStub.getPaths.mockReturnValue(['/stale.md']);
-      hoisted.stat.mockResolvedValue({ ino: ROOT_INO });
+      hoisted.stat.mockResolvedValue({ birthtimeMs: 0, ino: ROOT_INO });
       await createReadyComponent();
       expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('/stale.md');
     });
@@ -424,6 +452,175 @@ describe('ExternalRenameHandlerComponent', () => {
       await createReadyComponent();
       expect(hoisted.capturedLoadSettingsHandlers).toHaveLength(1);
       expect(hoisted.capturedSaveSettingsHandlers).toHaveLength(1);
+    });
+  });
+
+  describe('offline renames', () => {
+    const BIRTHTIME_MS = 1234;
+    const RENAMED_INO = 200;
+
+    function seedRename(oldPath: string, birthtimeMs: null | number = BIRTHTIME_MS): void {
+      hoisted.pathInoMapStub.getPaths.mockReturnValue([oldPath]);
+      hoisted.pathInoMapStub.getPath.mockImplementation((ino) => ino === RENAMED_INO ? oldPath : undefined);
+      hoisted.pathInoMapStub.getBirthtime.mockImplementation((path) => path === oldPath ? birthtimeMs ?? undefined : undefined);
+      // The plain `stat` carries a fraction of a millisecond, which the map does not keep.
+      hoisted.stat.mockResolvedValue({ birthtimeMs: BIRTHTIME_MS + 0.75, ino: RENAMED_INO });
+    }
+
+    it('should report a file renamed while Obsidian was closed as a vault rename', async () => {
+      const file = castTo<TAbstractFile>({ path: 'folder/new.md' });
+      loadedFiles = [file];
+      seedRename('old.md');
+      await createReadyComponent();
+      expect(triggerMock).toHaveBeenCalledWith('rename', file, 'old.md');
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS, ino: RENAMED_INO, path: 'folder/new.md' });
+      expect(showNoticeMock).toHaveBeenCalledWith('Detected 1 rename made while Obsidian was closed.');
+    });
+
+    it('should count several renames in one notice', async () => {
+      const folder = castTo<TAbstractFile>({ path: 'new-folder' });
+      const file = castTo<TAbstractFile>({ path: 'new-folder/note.md' });
+      loadedFiles = [folder, file];
+      const oldPaths = new Map([[1, 'old-folder'], [2, 'old-folder/note.md']]);
+      hoisted.pathInoMapStub.getPaths.mockReturnValue([...oldPaths.values()]);
+      hoisted.pathInoMapStub.getPath.mockImplementation((ino) => oldPaths.get(ino));
+      hoisted.pathInoMapStub.getBirthtime.mockReturnValue(BIRTHTIME_MS);
+      hoisted.stat.mockImplementation((path: string) => Promise.resolve({ birthtimeMs: BIRTHTIME_MS, ino: path.endsWith('note.md') ? 2 : (path.endsWith('new-folder') ? 1 : ROOT_INO) }));
+      await createReadyComponent();
+      expect(triggerMock.mock.calls).toEqual([['rename', folder, 'old-folder'], ['rename', file, 'old-folder/note.md']]);
+      expect(showNoticeMock).toHaveBeenCalledWith('Detected 2 renames made while Obsidian was closed.');
+    });
+
+    it('should wait for the metadata cache to be clean before reporting', async () => {
+      const file = castTo<TAbstractFile>({ path: 'new.md' });
+      loadedFiles = [file];
+      seedRename('old.md');
+      let markCacheClean: (() => void) | undefined;
+      seedOnRawTarget(
+        app.metadataCache,
+        'onCleanCache',
+        vi.fn((callback: () => void) => {
+          markCacheClean = callback;
+        })
+      );
+      const component = createComponent();
+      component.load();
+      capturedLayoutReadyCallback?.();
+      // Not `flush()`: the layout-ready work is parked on the cache on purpose, so waiting for it would never end.
+      await sleep(50);
+      expect(markCacheClean).toBeDefined();
+      expect(triggerMock).not.toHaveBeenCalled();
+      markCacheClean?.();
+      await flush();
+      expect(triggerMock).toHaveBeenCalledWith('rename', file, 'old.md');
+    });
+
+    // Ext4 hands a freed inode to the next new file, so a deleted note and an unrelated new one share it.
+    it('should not report a reused inode whose birth time differs', async () => {
+      loadedFiles = [castTo<TAbstractFile>({ path: 'unrelated.md' })];
+      seedRename('deleted.md', BIRTHTIME_MS - 1);
+      await createReadyComponent();
+      expect(triggerMock).not.toHaveBeenCalled();
+      expect(showNoticeMock).not.toHaveBeenCalled();
+    });
+
+    it('should not report an entry written before birth times were persisted', async () => {
+      loadedFiles = [castTo<TAbstractFile>({ path: 'new.md' })];
+      seedRename('old.md', null);
+      await createReadyComponent();
+      expect(triggerMock).not.toHaveBeenCalled();
+    });
+
+    // A hard link, or a new file created where the renamed one used to be: links to the old path still resolve.
+    it('should not report a rename whose old path is still in the vault', async () => {
+      loadedFiles = [castTo<TAbstractFile>({ path: 'old.md' }), castTo<TAbstractFile>({ path: 'new.md' })];
+      seedRename('old.md');
+      await createReadyComponent();
+      expect(triggerMock).not.toHaveBeenCalled();
+    });
+
+    it('should not report a rename when the setting is off, but still record the new path', async () => {
+      hoisted.settings.shouldDetectOfflineRenames = false;
+      loadedFiles = [castTo<TAbstractFile>({ path: 'new.md' })];
+      seedRename('old.md');
+      await createReadyComponent();
+      expect(triggerMock).not.toHaveBeenCalled();
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS, ino: RENAMED_INO, path: 'new.md' });
+    });
+
+    it('should not report a file a live change moved on while the cache was being built', async () => {
+      const file = castTo<TAbstractFile>({ path: 'new.md' });
+      loadedFiles = [file];
+      seedRename('old.md');
+      seedOnRawTarget(
+        app.metadataCache,
+        'onCleanCache',
+        vi.fn((callback: () => void) => {
+          castTo<MutablePathFile>(file).path = 'moved-again.md';
+          callback();
+        })
+      );
+      await createReadyComponent();
+      expect(triggerMock).not.toHaveBeenCalled();
+      expect(showNoticeMock).not.toHaveBeenCalled();
+    });
+
+    it('should not report a rename whose old path was taken again while the cache was being built', async () => {
+      const file = castTo<TAbstractFile>({ path: 'new.md' });
+      loadedFiles = [file];
+      seedRename('old.md');
+      seedOnRawTarget(
+        app.metadataCache,
+        'onCleanCache',
+        vi.fn((callback: () => void) => {
+          loadedFiles.push(castTo<TAbstractFile>({ path: 'old.md' }));
+          callback();
+        })
+      );
+      await createReadyComponent();
+      expect(triggerMock).not.toHaveBeenCalled();
+    });
+
+    it('should not report anything once the plugin has started unloading', async () => {
+      loadedFiles = [castTo<TAbstractFile>({ path: 'new.md' })];
+      seedRename('old.md');
+      seedOnRawTarget(
+        app.metadataCache,
+        'onCleanCache',
+        vi.fn((callback: () => void) => {
+          abortController.abort();
+          callback();
+        })
+      );
+      await createReadyComponent();
+      expect(triggerMock).not.toHaveBeenCalled();
+      expect(showNoticeMock).not.toHaveBeenCalled();
+    });
+
+    it('should stat a cached path once more when it has no birth time yet', async () => {
+      loadedFiles = [castTo<TAbstractFile>({ path: 'cached.md' })];
+      hoisted.pathInoMapStub.getPaths.mockReturnValue(['cached.md']);
+      hoisted.stat.mockResolvedValue({ birthtimeMs: BIRTHTIME_MS, ino: RENAMED_INO });
+      await createReadyComponent();
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS, ino: RENAMED_INO, path: 'cached.md' });
+      expect(triggerMock).not.toHaveBeenCalled();
+    });
+
+    it('should not stat a cached path that already has a birth time', async () => {
+      loadedFiles = [castTo<TAbstractFile>({ path: 'cached.md' })];
+      hoisted.pathInoMapStub.getPaths.mockReturnValue(['cached.md']);
+      hoisted.pathInoMapStub.getBirthtime.mockReturnValue(BIRTHTIME_MS);
+      await createReadyComponent();
+      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalled();
+    });
+
+    // A bigint `birthtimeMs` is whole milliseconds, so the plain one is truncated to match it.
+    it('should record the whole milliseconds of a live add, plain or bigint', async () => {
+      await createReadyComponent();
+      getWatcherHandler('all')('add', 'plain.md', { birthtimeMs: BIRTHTIME_MS + 0.75, ino: 300 });
+      getWatcherHandler('all')('add', 'bigint.md', { birthtimeMs: BigInt(BIRTHTIME_MS), ino: 301n });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS, ino: 300, path: 'plain.md' });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS, ino: 301, path: 'bigint.md' });
     });
   });
 
@@ -454,19 +651,19 @@ describe('ExternalRenameHandlerComponent', () => {
       await setup();
       hoisted.pathInoMapStub.getPath.mockReturnValue('test.md');
       getWatcherHandler('all')('add', 'test.md', { ino: 200 });
-      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalledWith({ ino: 200, path: 'test.md' });
+      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalledWith(expect.objectContaining({ ino: 200, path: 'test.md' }));
     });
 
     it('should index a new file add', async () => {
       await setup();
       getWatcherHandler('all')('add', 'new.md', { ino: 300 });
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 300, path: 'new.md' });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith(expect.objectContaining({ ino: 300, path: 'new.md' }));
     });
 
     it('should index a new addDir', async () => {
       await setup();
       getWatcherHandler('all')('addDir', 'newfolder', { ino: 400 });
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 400, path: 'newfolder' });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith(expect.objectContaining({ ino: 400, path: 'newfolder' }));
     });
 
     it('should handle a rename with a file entry', async () => {
@@ -474,7 +671,7 @@ describe('ExternalRenameHandlerComponent', () => {
       hoisted.pathInoMapStub.getPath.mockReturnValue('old.md');
       adapter.files['old.md'] = { realpath: '/test-vault/old.md' };
       getWatcherHandler('all')('add', 'renamed.md', { ino: 500 });
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 500, path: 'renamed.md' });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith(expect.objectContaining({ ino: 500, path: 'renamed.md' }));
       expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('old.md');
       expect(adapter.files['renamed.md']).toEqual({ realpath: 'renamed.md' });
       expect(adapter.files['old.md']).toBeUndefined();
@@ -493,7 +690,7 @@ describe('ExternalRenameHandlerComponent', () => {
       hoisted.pathInoMapStub.getPath.mockReturnValue('old.md');
       adapter.files['old.md'] = { realpath: '/test-vault/old.md' };
       getWatcherHandler('all')('add', realPath, { ino: 500 });
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 500, path: normalizedPath });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith(expect.objectContaining({ ino: 500, path: normalizedPath }));
       expect(adapter.files[normalizedPath]).toEqual({ realpath: realPath });
       expect(adapter.files[realPath]).toBeUndefined();
       expect(onChangeMock).toHaveBeenCalledWith('renamed', normalizedPath, 'old.md');
@@ -519,7 +716,7 @@ describe('ExternalRenameHandlerComponent', () => {
       hoisted.pathInoMapStub.getPath.mockReturnValue('old.md');
       getWatcherHandler('all')('add', 'renamed.md', { ino: 500n });
       expect(hoisted.pathInoMapStub.getPath).toHaveBeenCalledWith(500);
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ ino: 500, path: 'renamed.md' });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith(expect.objectContaining({ ino: 500, path: 'renamed.md' }));
       expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('old.md');
     });
 

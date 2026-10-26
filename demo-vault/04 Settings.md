@@ -8,6 +8,8 @@ Open **Settings -> Community plugins -> `External Rename Handler`** to configure
   - polling is an additional mechanism to detect file changes. A lower value reacts faster but uses more CPU; a higher value is lighter but may delay detecting missed changes. Use `0` to disable polling.
 - `deletionRenameDetectionTimeoutInMilliseconds`
   - the timeout used to tell a genuine deletion apart from the delete half of a rename. Renames usually arrive as a create/delete pair that needs no timeout, but in rare cases the events arrive in reverse (delete then create), and this timeout gives the create time to show up. Use `0` to disable this timeout.
+- `shouldDetectOfflineRenames`
+  - whether a file renamed or moved while Obsidian was closed is reported as a rename when Obsidian starts. On by default. See [03 How it works](<./03 How it works.md>) for what counts as such a rename.
 
 Worth seeing rather than reading: raise the polling interval, then rename the note from [01 External renames](<./01 External renames.md>) and watch how long Obsidian takes to notice.
 

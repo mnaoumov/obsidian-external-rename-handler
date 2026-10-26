@@ -76,6 +76,22 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
               .setMin(0);
           });
         }
+      }),
+      this.settingEx({
+        desc: createFragment((f) => {
+          f.appendText('When Obsidian starts, recognize the files renamed or moved while it was closed and report them as renames.');
+          f.createEl('br');
+          f.appendText('A file is recognized only when its old path is gone and the file system still gives it the same identity.');
+        }),
+        name: 'Detect renames made while Obsidian was closed',
+        render: (setting) => {
+          setting.addToggle((toggle) => {
+            this.bind({
+              propertyName: 'shouldDetectOfflineRenames',
+              valueComponent: toggle
+            });
+          });
+        }
       })
     ];
   }
