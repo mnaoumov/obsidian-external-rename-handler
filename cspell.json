@@ -12,6 +12,8 @@
     "GHSA",
     "Invocables",
     "backlinks",
+    "birthtime",
+    "birthtimes",
     "debouncer",
     "dettle",
     "indexeddb",

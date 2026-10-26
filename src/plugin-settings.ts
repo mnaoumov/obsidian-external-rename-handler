@@ -9,5 +9,7 @@ export class PluginSettings {
   // offer, which is also what a fresh install has. One property rather than a flag plus a value, so a fresh
   // install can never be told it has a migration waiting.
   public proposedShouldHandleRenames: boolean | null = null;
+
+  public shouldDetectOfflineRenames = true;
   /* eslint-enable no-magic-numbers -- Magic numbers are OK in settings. */
 }

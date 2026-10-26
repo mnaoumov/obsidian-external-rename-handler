@@ -7,11 +7,14 @@ import { debounce } from 'obsidian';
 const STORE_NAME = 'path-ino';
 
 interface DatabaseEntry {
+  // Absent from an entry written before 4.1.0.
+  birthtimeMs?: number;
   ino: number;
   path: string;
 }
 
 interface PathInoMapSetParams {
+  readonly birthtimeMs: number;
   readonly ino: number;
   readonly path: string;
 }
@@ -21,6 +24,10 @@ const PROCESS_STORE_ACTIONS_DEBOUNCE_INTERVAL_IN_MILLISECONDS = 5000;
 
 export class PathInoMap implements Disposable {
   private _database?: IDBDatabase;
+
+  // The birth time vouches that an inode found at a new path after a restart is the same file, and not a freed inode
+  // the file system handed to an unrelated new file.
+  private readonly birthtimes = new Map<string, number>();
 
   private isDisposed = false;
 
@@ -41,12 +48,18 @@ export class PathInoMap implements Disposable {
 
   public clear(): void {
     this.twoWayMap.clear();
+    this.birthtimes.clear();
     this.addStoreAction((store) => store.clear());
   }
 
   public deletePath(path: string): void {
     this.twoWayMap.deleteKey(path);
+    this.birthtimes.delete(path);
     this.addStoreAction((store) => store.delete(path));
+  }
+
+  public getBirthtime(path: string): number | undefined {
+    return this.birthtimes.get(path);
   }
 
   public getIno(path: string): number | undefined {
@@ -85,20 +98,27 @@ export class PathInoMap implements Disposable {
     const databaseEntries = await getResult(store.getAll()) as DatabaseEntry[];
     for (const entry of databaseEntries) {
       this.twoWayMap.set(entry.path, entry.ino);
+      if (entry.birthtimeMs !== undefined) {
+        this.birthtimes.set(entry.path, entry.birthtimeMs);
+      }
     }
   }
 
   public set(params: PathInoMapSetParams): void {
-    const { ino, path } = params;
+    const { birthtimeMs, ino, path } = params;
     const oldPath = this.getPath(ino);
     this.twoWayMap.set(path, ino);
+    if (oldPath !== undefined) {
+      this.birthtimes.delete(oldPath);
+    }
+    this.birthtimes.set(path, birthtimeMs);
 
     this.addStoreAction((store) => {
       store.delete(path);
       if (oldPath !== undefined && oldPath !== path) {
         store.delete(oldPath);
       }
-      store.add({ ino, path });
+      store.add({ birthtimeMs, ino, path } satisfies DatabaseEntry);
     });
   }
 

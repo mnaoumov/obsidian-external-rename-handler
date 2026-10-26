@@ -21,10 +21,11 @@ import {
 import { PluginSettingsTab } from './plugin-settings-tab.ts';
 import { PluginSettings } from './plugin-settings.ts';
 
-// The banner row binds nothing; the two detection-tuning rows are all that is left to bind.
+// The banner row binds nothing; the detection rows are all that is left to bind.
 const EXPECTED_BOUND_PROPERTIES = [
   'pollingIntervalInMilliseconds',
-  'deletionRenameDetectionTimeoutInMilliseconds'
+  'deletionRenameDetectionTimeoutInMilliseconds',
+  'shouldDetectOfflineRenames'
 ];
 
 const BANNER_ROW_INDEX = 0;
@@ -56,7 +57,12 @@ describe('PluginSettingsTab', () => {
   it('should declare the suggestion banner row first and the detection rows after it', () => {
     const tab = createTab();
 
-    expect(settingNames(tab)).toEqual(['', 'Polling interval in milliseconds', 'Deletion/rename detection timeout in milliseconds']);
+    expect(settingNames(tab)).toEqual([
+      '',
+      'Polling interval in milliseconds',
+      'Deletion/rename detection timeout in milliseconds',
+      'Detect renames made while Obsidian was closed'
+    ]);
   });
 
   it('should keep the banner row out of the settings search', () => {
@@ -118,7 +124,8 @@ function createTab(): PluginSettingsTab {
         deletionRenameDetectionTimeoutInMilliseconds: '',
         isAdvancedRenameAndDeleteHandlerSuggestionDeclined: '',
         pollingIntervalInMilliseconds: '',
-        proposedShouldHandleRenames: ''
+        proposedShouldHandleRenames: '',
+        shouldDetectOfflineRenames: ''
       }
     }
   });
