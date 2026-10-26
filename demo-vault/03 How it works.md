@@ -6,7 +6,7 @@ Obsidian does not natively track renames that happen outside the app. When a fil
 
 - While Obsidian is running, it watches the vault folder on disk for file-system changes.
 - It keeps a map from each tracked file to its underlying inode (the OS's stable identifier for the file's contents). When a delete and a create share the same inode, it knows the file was **renamed**, not replaced, and reports a single `rename` event, so the file keeps its identity.
-- By default it **polls** the file system on an interval rather than waiting for the operating system's change events, which network shares may never deliver - see [File systems](#file-systems).
+- By default it **polls** the file system on an interval rather than waiting for the operating system's change events, which network shares may never deliver - see [05 File systems](<./05 File systems.md>).
 - The map is saved, so it survives a restart. When Obsidian starts, a file at a path the map does not know is looked up by its inode. If that inode belonged to a path that is now gone, the file was renamed or moved **while Obsidian was closed**, and that is reported as a `rename` too.
 
 ## Renames made while Obsidian was closed
@@ -26,32 +26,12 @@ That `rename` event is where this plugin's job ends. Obsidian only rewrites link
 
 ## File systems
 
-Everything above rests on a rename keeping the file's inode. Each row below was measured with the plugin's own watcher settings: a rename, a move to a subfolder and a folder rename, with both the default polling watcher and the native one (`pollingIntervalInMilliseconds` set to `0`).
-
-| File system | Where | Live renames | Renames while Obsidian was closed |
-| --- | --- | --- | --- |
-| NTFS | Windows, local disk | Yes | Yes |
-| NTFS under OneDrive (Files On-Demand) | Windows | Yes | Not measured |
-| Google Drive for desktop (its `G:` drive) | Windows | Yes | Not measured |
-| SMB share of a Windows NTFS disk | Windows | Yes (measured with polling only) | Not measured |
-| SMB share of a Synology NAS | Windows | Files yes; folders only with a longer timeout, see below; nothing at all without polling | Not measured |
-| ext4 opened through `\\wsl.localhost` | Windows | Yes with polling; nothing at all without it; may report a false rename, see below | Not measured |
-| ext4 | Linux | Yes; may report a false rename, see below | Yes: the inode survives a remount |
-| FAT32 (`vfat`) | Linux | Yes | **No**: every mount renumbers the inodes |
-
-Not tested at all: FAT32 and exFAT on Windows (USB sticks, SD cards), exFAT on Linux, ReFS, APFS and HFS+ on macOS, NFS, Btrfs, Dropbox and iCloud Drive.
-
-What goes wrong where it does not work:
-
-- **A rename is missed**, and you are told nothing. Obsidian sees a delete and a create, exactly as it would without the plugin, and the links to the old name are left unresolved. That is what happens to a folder renamed on the Synology share with the default `deletionRenameDetectionTimeoutInMilliseconds` of `500` (5 times out of 6), to every rename on a share without polling (the native watcher reported no change at all there), and to a rename on a Linux FAT32 drive made while Obsidian was closed. On a network share, raise the timeout to `3000` (3 times out of 3) and keep polling on.
-- **A rename is reported that never happened.** ext4 gives a freed inode to the next new file straight away, so a deleted note and an unrelated note created after it can share an inode. The plugin tells them apart by the creation time saved with the inode, both while Obsidian is running and at startup, but that time is kept to the millisecond. A note created in the same millisecond the other was deleted, which a script deleting and creating files in a tight loop manages most of the time (41 to 45 times out of 50 when measured), is still reported as a rename of the first into the second, and with `Advanced Rename and Delete Handler` installed the links to the deleted note are rewritten to the new one. A person deleting one note and creating another by hand is far slower than that.
-
-On every file system measured, a save that writes a new copy and swaps it in for the note gives the note a new inode. While Obsidian is running, the plugin sees that save as an edit and records the new inode, so a later rename is still recognized. A save like that made while Obsidian was closed is caught at the next start: the plugin saves each note's modification time and size with its inode, and looks at the note on disk again when either has changed. A tool that swaps in a copy with the same size and keeps the old modification time, as a sync tool can, still goes unseen, and the next rename of that note made outside Obsidian is missed until the note is changed again with Obsidian open.
+Everything above rests on a rename keeping the file's inode, and not every file system keeps it. [05 File systems](<./05 File systems.md>) lists each one measured, what goes wrong where it does not work, and why a rename made straight after a save that replaced the note can be missed.
 
 ## Limitations (be honest with yourself)
 
 - A rename made while Obsidian is closed is recognized only when the file kept its identity on disk - see [Renames made while Obsidian was closed](#renames-made-while-obsidian-was-closed) above.
-- Some file systems do not keep that identity, or report changes late or not at all - see [File systems](#file-systems) above.
+- Some file systems do not keep that identity, or report changes late or not at all - see [05 File systems](<./05 File systems.md>).
 - Only files and folders **inside** the vault are handled, and only ones Obsidian already tracks.
 - Items whose names start with a dot (`.`) are ignored.
 - A rename of a file that lives outside the vault is not handled, even if notes inside link to it.
