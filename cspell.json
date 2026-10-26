@@ -9,6 +9,8 @@
   "dictionaryDefinitions": [],
   "dictionaries": [],
   "words": [
+    "APFS",
+    "Btrfs",
     "GHSA",
     "Invocables",
     "backlinks",
@@ -25,6 +27,7 @@
     "mnaoumov",
     "Naumov",
     "newfolder",
+    "NTFS",
     "obsidianmd",
     "offref",
     "pmpm",
@@ -39,6 +42,7 @@
     "tsex",
     "unref",
     "unvalidated",
+    "vfat",
     "wdio"
   ],
   "ignoreWords": [],

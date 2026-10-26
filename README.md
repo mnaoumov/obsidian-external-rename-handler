@@ -10,6 +10,8 @@ This plugin recognizes those external renames for what they are and reports them
 >
 > A rename made while Obsidian is closed is recognized at the next start only when the file kept its identity on disk (the same inode and creation time).
 >
+> Not every file system keeps that identity: see [Supported file systems](#supported-file-systems).
+>
 > The plugin only handles renames for those files/folders that Obsidian tracks.
 >
 > The plugin only handles renames made inside the vault.
@@ -49,6 +51,7 @@ A copy of the vault ships with every release. You can access it via any of the f
 - **A rename made while Obsidian was closed** is recognized when Obsidian starts again. [03 How it works](<./demo-vault/03 How it works.md#renames-made-while-obsidian-was-closed>)
 - **Moving a file, and moving whole folders**, are handled the same way. [02 Moving and folders](<./demo-vault/02 Moving and folders.md>)
 - **How the detection works**, and therefore where its limits are — worth reading before trusting it with anything irreversible. [03 How it works](<./demo-vault/03 How it works.md>)
+- **Which file systems it works on**, each one measured. [03 How it works](<./demo-vault/03 How it works.md#file-systems>)
 - **Every setting**, by the key it is stored under. [04 Settings](<./demo-vault/04 Settings.md>)
 
 ## Renames
@@ -56,6 +59,32 @@ A copy of the vault ships with every release. You can access it via any of the f
 Up to version 3 this plugin rewrote the links itself, through a copy of a rename/delete handler that four other plugins also bundled — so which copy actually ran depended on Obsidian's load order. Since **4.0.0** it does not, and rename and delete handling belongs to [Advanced Rename and Delete Handler](https://github.com/mnaoumov/obsidian-advanced-rename-and-delete-handler) instead — one plugin owning it for the whole vault.
 
 The two are meant to be used together: this plugin sees the rename your file manager made, that one updates the notes pointing at the old name. This plugin offers to install it, once, and carries your old `Should update links` value over for you to approve. Decline, and external renames are still detected — the file keeps its identity, its open tab and the file explorer follow it — but the links are left as they were.
+
+## Supported file systems
+
+The plugin knows a rename by the file keeping its inode, the number the file system identifies a file by, across the delete and the create Obsidian would otherwise see. So it works where a rename keeps that number, and only there.
+
+Every row below was measured with the plugin's own watcher settings (`chokidar` 6.0.0, Node 26 on Windows 11, Node 22 on Linux under WSL 2): a rename, a move to a subfolder and a folder rename, with both the default polling watcher and the native one (`pollingIntervalInMilliseconds` set to `0`).
+
+| File system | Where | Live renames | Renames while Obsidian was closed |
+| --- | --- | --- | --- |
+| NTFS | Windows, local disk | Yes | Yes |
+| NTFS under OneDrive (Files On-Demand) | Windows | Yes | Not measured |
+| Google Drive for desktop (its `G:` drive) | Windows | Yes | Not measured |
+| SMB share of a Windows NTFS disk | Windows | Yes (measured with polling only) | Not measured |
+| SMB share of a Synology NAS | Windows | Files yes; folders only with a longer timeout, see below; nothing at all without polling | Not measured |
+| ext4 opened through `\\wsl.localhost` | Windows | Yes with polling; nothing at all without it; may report a false rename, see below | Not measured |
+| ext4 | Linux | Yes; may report a false rename, see below | Yes: the inode survives a remount |
+| FAT32 (`vfat`) | Linux | Yes | **No**: every mount renumbers the inodes |
+
+Not tested at all: FAT32 and exFAT on Windows (USB sticks, SD cards), exFAT on Linux, ReFS, APFS and HFS+ on macOS, NFS, Btrfs, Dropbox and iCloud Drive.
+
+What goes wrong where it does not work:
+
+- **A rename is missed**, and you are told nothing. Obsidian sees a delete and a create, exactly as it would without the plugin, and the links to the old name are left unresolved. That is what happens to a folder renamed on the Synology share with the default `deletionRenameDetectionTimeoutInMilliseconds` of `500` (5 times out of 6), to every rename on a share without polling (the native watcher reported no change at all there), and to a rename on a Linux FAT32 drive made while Obsidian was closed. On a network share, raise the timeout to `3000` (3 times out of 3) and keep polling on.
+- **A rename is reported that never happened.** ext4 gives a freed inode to the next new file straight away, so a note deleted and an unrelated note created within the timeout are reported as a rename of the first into the second, and with `Advanced Rename and Delete Handler` installed the links to the deleted note are rewritten to the new one. A rename made while Obsidian was closed is protected from this by the saved creation time.
+
+On every file system measured, a save that writes a new copy and swaps it in for the note gives the note a new inode. That save is still seen as an edit, but the next rename of that note made outside Obsidian is missed.
 
 ## Installation
 
