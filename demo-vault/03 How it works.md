@@ -7,12 +7,26 @@ Obsidian does not natively track renames that happen outside the app. When a fil
 - While Obsidian is running, it watches the vault folder on disk for file-system changes.
 - It keeps a map from each tracked file to its underlying inode (the OS's stable identifier for the file's contents). When a delete and a create share the same inode, it knows the file was **renamed**, not replaced, and reports a single `rename` event, so the file keeps its identity.
 - It also **polls** the file system on an interval as a safety net, to catch changes the event stream misses.
+- The map is saved, so it survives a restart. When Obsidian starts, a file at a path the map does not know is looked up by its inode. If that inode belonged to a path that is now gone, the file was renamed or moved **while Obsidian was closed**, and that is reported as a `rename` too.
+
+## Renames made while Obsidian was closed
+
+When Obsidian starts, it reads the vault from disk afresh, so a file moved while it was closed simply turns up at its new path, and the links to the old one are left unresolved. The plugin reports such a file once Obsidian has finished indexing the vault, and one notice says how many it found.
+
+It is careful about what counts:
+
+- The old path must be gone. If a file sits there again, or the old path is a second name of the same file (a hard link), the links to it still work, and nothing is reported.
+- The file's creation time must match the one saved with the inode. Some file systems (ext4 on Linux, for one) give a freed inode to the next new file, so a deleted note and an unrelated new one can share it. The creation time tells them apart.
+- A copy is a new file with a new inode, so it is never taken for a rename. A file moved out of the vault is simply gone.
+- A file saved by writing a new copy and swapping it in gets a new inode, so a rename of it is not recognized.
+
+Files the plugin has not seen since an update to **4.1.0** carry no saved creation time yet. They get one at the next start, so the first restart after the update cannot recognize them. The `shouldDetectOfflineRenames` setting in [04 Settings](<./04 Settings.md>) turns this whole check off.
 
 That `rename` event is where this plugin's job ends. Obsidian only rewrites links when *it* performs the rename, so something has to act on the event - and since **4.0.0** that something is [Advanced Rename and Delete Handler](https://github.com/mnaoumov/obsidian-advanced-rename-and-delete-handler), which owns rename and delete handling for the whole vault rather than a copy of it living inside each plugin that happened to need one. Without it installed, an external rename is still detected and the file keeps its identity, but the notes pointing at the old name are left as they were.
 
 ## Limitations (be honest with yourself)
 
-- Obsidian must be **running** during the external rename. Changes made while it is closed are not detected.
+- A rename made while Obsidian is closed is recognized only when the file kept its identity on disk - see [Renames made while Obsidian was closed](#renames-made-while-obsidian-was-closed) above.
 - Only files and folders **inside** the vault are handled, and only ones Obsidian already tracks.
 - Items whose names start with a dot (`.`) are ignored.
 - A rename of a file that lives outside the vault is not handled, even if notes inside link to it.

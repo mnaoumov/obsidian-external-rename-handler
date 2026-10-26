@@ -40,8 +40,6 @@ await require('/demoSetup.ts').resetDemo(app);
 
 Manual equivalent of the reset: rename everything back by hand in your file manager.
 
-The same thing happens when the file is renamed by `git checkout`, a cloud-sync client, or a backup-restore tool - as long as Obsidian is running to observe it.
+The same thing happens when the file is renamed by `git checkout`, a cloud-sync client, or a backup-restore tool.
 
-> [!WARNING]
->
-> The plugin only works while Obsidian is **running** during the external rename. Renames made while Obsidian is closed are not detected. See [03 How it works](<./03 How it works.md>) for the full list of caveats.
+It also works when Obsidian is **closed**: rename the note in your file manager, then start Obsidian, and the rename is reported once the vault has been indexed. See [03 How it works](<./03 How it works.md>) for how that is recognized, and for the full list of caveats.

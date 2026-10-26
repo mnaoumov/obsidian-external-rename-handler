@@ -8,7 +8,7 @@ This plugin recognizes those external renames for what they are and reports them
 
 > [!WARNING]
 >
-> The plugin works only if Obsidian is running during the external renames.
+> A rename made while Obsidian is closed is recognized at the next start only when the file kept its identity on disk (the same inode and creation time).
 >
 > The plugin only handles renames for those files/folders that Obsidian tracks.
 >
@@ -46,6 +46,7 @@ A copy of the vault ships with every release. You can access it via any of the f
 ## What it does
 
 - **A rename made outside Obsidian is recognized as a rename**, instead of arriving as an unrelated delete and create. [01 External renames](<./demo-vault/01 External renames.md>)
+- **A rename made while Obsidian was closed** is recognized when Obsidian starts again. [03 How it works](<./demo-vault/03 How it works.md#renames-made-while-obsidian-was-closed>)
 - **Moving a file, and moving whole folders**, are handled the same way. [02 Moving and folders](<./demo-vault/02 Moving and folders.md>)
 - **How the detection works**, and therefore where its limits are — worth reading before trusting it with anything irreversible. [03 How it works](<./demo-vault/03 How it works.md>)
 - **Every setting**, by the key it is stored under. [04 Settings](<./demo-vault/04 Settings.md>)
