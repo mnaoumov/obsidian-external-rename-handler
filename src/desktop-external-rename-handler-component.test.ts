@@ -17,7 +17,11 @@ import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { waitForAllAsyncOperations } from '@mnaoumov/typescript-test-toolkit/async-operation-tracking';
 import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { FSWatcher } from 'chokidar';
-import { App } from 'obsidian-test-mocks/obsidian';
+import {
+  App,
+  TFile,
+  Vault
+} from 'obsidian-test-mocks/obsidian';
 import {
   afterEach,
   beforeEach,
@@ -65,6 +69,7 @@ interface PathInoMapStub {
   getIno: Mock<(path: string) => number | undefined>;
   getPath: Mock<(ino: number) => string | undefined>;
   getPaths: Mock<() => string[]>;
+  getStamp: Mock<(path: string) => Stamp | undefined>;
   init: Mock<(app: AppOriginal) => Promise<void>>;
   set: Mock<(params: SetParams) => void>;
 }
@@ -73,6 +78,12 @@ interface SetParams {
   readonly birthtimeMs: number;
   readonly ino: number;
   readonly path: string;
+  readonly stamp?: Stamp | undefined;
+}
+
+interface Stamp {
+  readonly mtime: number;
+  readonly size: number;
 }
 
 interface TestAdapter {
@@ -112,6 +123,7 @@ const hoisted = vi.hoisted(() => {
     getIno: vi.fn((): number | undefined => undefined),
     getPath: vi.fn((): string | undefined => undefined),
     getPaths: vi.fn((): string[] => []),
+    getStamp: vi.fn((): Stamp | undefined => undefined),
     init: vi.fn((): Promise<void> => noopAsync()),
     set: vi.fn(),
     [Symbol.dispose]: vi.fn()
@@ -126,7 +138,7 @@ const hoisted = vi.hoisted(() => {
       pollingIntervalInMilliseconds: 2000,
       shouldDetectOfflineRenames: true
     },
-    stat: vi.fn<(path: string) => Promise<Pick<Stats, 'birthtimeMs' | 'ino'>>>(() => Promise.resolve({ birthtimeMs: 0, ino: ROOT_INO }))
+    stat: vi.fn<(path: string) => Promise<Partial<Pick<Stats, 'mtimeMs' | 'size'>> & Pick<Stats, 'birthtimeMs' | 'ino'>>>(() => Promise.resolve({ birthtimeMs: 0, ino: ROOT_INO }))
   };
 });
 
@@ -161,6 +173,7 @@ vi.mock('./path-ino-map.ts', () => ({
     public getIno = hoisted.pathInoMapStub.getIno;
     public getPath = hoisted.pathInoMapStub.getPath;
     public getPaths = hoisted.pathInoMapStub.getPaths;
+    public getStamp = hoisted.pathInoMapStub.getStamp;
     public init = hoisted.pathInoMapStub.init;
     public set = hoisted.pathInoMapStub.set;
     public [Symbol.dispose] = hoisted.pathInoMapStub[Symbol.dispose];
@@ -252,6 +265,12 @@ function createComponent(): ExternalRenameHandlerComponent {
   });
 }
 
+function createFile(path: string, stamp: Stamp): TAbstractFile {
+  const file = TFile.create__(Vault.fromOriginalType2__(app.vault), path).asOriginalType2__();
+  file.stat = { ctime: 0, ...stamp };
+  return file;
+}
+
 async function createReadyComponent(): Promise<ExternalRenameHandlerComponent> {
   const component = createComponent();
   component.load();
@@ -329,6 +348,7 @@ describe('ExternalRenameHandlerComponent', () => {
     hoisted.pathInoMapStub.getIno.mockReturnValue(undefined);
     hoisted.pathInoMapStub.getPath.mockReturnValue(undefined);
     hoisted.pathInoMapStub.getPaths.mockReturnValue([]);
+    hoisted.pathInoMapStub.getStamp.mockReturnValue(undefined);
     hoisted.pathInoMapStub.init.mockResolvedValue(undefined);
     hoisted.stat.mockResolvedValue({ birthtimeMs: 0, ino: ROOT_INO });
     hoisted.settings.deletionRenameDetectionTimeoutInMilliseconds = 500;
@@ -606,12 +626,55 @@ describe('ExternalRenameHandlerComponent', () => {
       expect(triggerMock).not.toHaveBeenCalled();
     });
 
-    it('should not stat a cached path that already has a birth time', async () => {
-      loadedFiles = [castTo<TAbstractFile>({ path: 'cached.md' })];
-      hoisted.pathInoMapStub.getPaths.mockReturnValue(['cached.md']);
+    it('should not stat a cached folder that already has a birth time', async () => {
+      loadedFiles = [castTo<TAbstractFile>({ path: 'cached' })];
+      hoisted.pathInoMapStub.getPaths.mockReturnValue(['cached']);
       hoisted.pathInoMapStub.getBirthtime.mockReturnValue(BIRTHTIME_MS);
       await createReadyComponent();
       expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalled();
+    });
+
+    it('should not stat a cached file whose modification time and size are unchanged', async () => {
+      const stamp = { mtime: 5000, size: 42 };
+      loadedFiles = [createFile('cached.md', stamp)];
+      hoisted.pathInoMapStub.getPaths.mockReturnValue(['cached.md']);
+      hoisted.pathInoMapStub.getBirthtime.mockReturnValue(BIRTHTIME_MS);
+      hoisted.pathInoMapStub.getStamp.mockReturnValue(stamp);
+      await createReadyComponent();
+      expect(hoisted.stat).not.toHaveBeenCalledWith('/test-vault/cached.md');
+      expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalled();
+    });
+
+    // Regression test: a save that swapped a new copy in for the note while Obsidian was closed gave it a new inode, and
+    // the startup pass trusted the cached one, so the note's next external rename read as a delete plus a create.
+    it('should record the new inode of a cached file a save replaced while Obsidian was closed', async () => {
+      loadedFiles = [createFile('keep.md', { mtime: 6000, size: 43 })];
+      hoisted.pathInoMapStub.getPaths.mockReturnValue(['keep.md']);
+      hoisted.pathInoMapStub.getBirthtime.mockReturnValue(BIRTHTIME_MS);
+      hoisted.pathInoMapStub.getStamp.mockReturnValue({ mtime: 5000, size: 42 });
+      hoisted.stat.mockResolvedValue({ birthtimeMs: BIRTHTIME_MS + 1, ino: 801, mtimeMs: 6000.4, size: 43 });
+      await createReadyComponent();
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({
+        birthtimeMs: BIRTHTIME_MS + 1,
+        ino: 801,
+        path: 'keep.md',
+        stamp: { mtime: 6000, size: 43 }
+      });
+      expect(triggerMock).not.toHaveBeenCalled();
+    });
+
+    it('should stat a cached file once more when it has no stamp yet', async () => {
+      loadedFiles = [createFile('cached.md', { mtime: 5000, size: 42 })];
+      hoisted.pathInoMapStub.getPaths.mockReturnValue(['cached.md']);
+      hoisted.pathInoMapStub.getBirthtime.mockReturnValue(BIRTHTIME_MS);
+      hoisted.stat.mockResolvedValue({ birthtimeMs: BIRTHTIME_MS, ino: RENAMED_INO, mtimeMs: 5000, size: 42 });
+      await createReadyComponent();
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({
+        birthtimeMs: BIRTHTIME_MS,
+        ino: RENAMED_INO,
+        path: 'cached.md',
+        stamp: { mtime: 5000, size: 42 }
+      });
     });
 
     // A bigint `birthtimeMs` is whole milliseconds, so the plain one is truncated to match it.
@@ -619,8 +682,8 @@ describe('ExternalRenameHandlerComponent', () => {
       await createReadyComponent();
       getWatcherHandler('all')('add', 'plain.md', { birthtimeMs: BIRTHTIME_MS + 0.75, ino: 300 });
       getWatcherHandler('all')('add', 'bigint.md', { birthtimeMs: BigInt(BIRTHTIME_MS), ino: 301n });
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS, ino: 300, path: 'plain.md' });
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS, ino: 301, path: 'bigint.md' });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith(expect.objectContaining({ birthtimeMs: BIRTHTIME_MS, ino: 300, path: 'plain.md' }));
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith(expect.objectContaining({ birthtimeMs: BIRTHTIME_MS, ino: 301, path: 'bigint.md' }));
     });
   });
 
@@ -740,7 +803,7 @@ describe('ExternalRenameHandlerComponent', () => {
       hoisted.pathInoMapStub.getBirthtime.mockReturnValue(BIRTHTIME_MS);
       adapter.files['deleted.md'] = { realpath: '/test-vault/deleted.md' };
       getWatcherHandler('all')('add', 'created.md', { birthtimeMs: BIRTHTIME_MS + 1, ino: 500 });
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS + 1, ino: 500, path: 'created.md' });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith(expect.objectContaining({ birthtimeMs: BIRTHTIME_MS + 1, ino: 500, path: 'created.md' }));
       expect(hoisted.pathInoMapStub.deletePath).toHaveBeenCalledWith('deleted.md');
       expect(onChangeMock).not.toHaveBeenCalled();
       expect(adapter.files['deleted.md']).toEqual({ realpath: '/test-vault/deleted.md' });
@@ -812,12 +875,45 @@ describe('ExternalRenameHandlerComponent', () => {
       expect(originalOnFileChangeSpy).toHaveBeenCalledWith('changed.md');
     });
 
-    it('should leave the map alone on a change that kept the inode', async () => {
+    it('should leave the map alone on a change that kept the inode and the stamp', async () => {
       await setup();
       hoisted.pathInoMapStub.getIno.mockReturnValue(800);
-      getWatcherHandler('all')('change', 'changed.md', { birthtimeMs: BIRTHTIME_MS, ino: 800 });
+      hoisted.pathInoMapStub.getStamp.mockReturnValue({ mtime: 5000, size: 42 });
+      getWatcherHandler('all')('change', 'changed.md', { birthtimeMs: BIRTHTIME_MS, ino: 800, mtimeMs: 5000.2, size: 42 });
       expect(hoisted.pathInoMapStub.set).not.toHaveBeenCalled();
       expect(originalOnFileChangeSpy).toHaveBeenCalledWith('changed.md');
+    });
+
+    // Kept current, the stamp spares the note a `stat` at the next start.
+    it('should record the new stamp of an edit that kept the inode', async () => {
+      await setup();
+      hoisted.pathInoMapStub.getIno.mockReturnValue(800);
+      hoisted.pathInoMapStub.getStamp.mockReturnValue({ mtime: 5000, size: 42 });
+      getWatcherHandler('all')('change', 'changed.md', { birthtimeMs: BIRTHTIME_MS, ino: 800, mtimeMs: 6000, size: 50 });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({
+        birthtimeMs: BIRTHTIME_MS,
+        ino: 800,
+        path: 'changed.md',
+        stamp: { mtime: 6000, size: 50 }
+      });
+    });
+
+    // A bigint `mtimeMs` is truncated, so the stamp is rounded from the nanoseconds, as Obsidian rounds the plain one.
+    it('should round a bigint modification time from its nanoseconds', async () => {
+      await setup();
+      getWatcherHandler('all')('add', 'new.md', { birthtimeMs: BigInt(BIRTHTIME_MS), ino: 900n, mtimeMs: 5000n, mtimeNs: 5_000_600_000n, size: 42n });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({
+        birthtimeMs: BIRTHTIME_MS,
+        ino: 900,
+        path: 'new.md',
+        stamp: { mtime: 5001, size: 42 }
+      });
+    });
+
+    it('should record no stamp for a folder', async () => {
+      await setup();
+      getWatcherHandler('all')('addDir', 'folder', { birthtimeMs: BIRTHTIME_MS, ino: 901, mtimeMs: 5000, size: 0 });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS, ino: 901, path: 'folder', stamp: undefined });
     });
 
     // Regression test: a save that renames a temp file over the note gives it a new inode, reported as a `change`. The map
@@ -825,8 +921,8 @@ describe('ExternalRenameHandlerComponent', () => {
     it('should record the new inode of a note a save replaced, so its next rename is still a rename', async () => {
       await setup();
       hoisted.pathInoMapStub.getIno.mockReturnValue(800);
-      getWatcherHandler('all')('change', 'keep.md', { birthtimeMs: BIRTHTIME_MS + 0.75, ino: 801n });
-      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS, ino: 801, path: 'keep.md' });
+      getWatcherHandler('all')('change', 'keep.md', { birthtimeMs: BIRTHTIME_MS + 0.75, ino: 801n, mtimeMs: 5000n, mtimeNs: 5_000_000_000n, size: 42n });
+      expect(hoisted.pathInoMapStub.set).toHaveBeenCalledWith({ birthtimeMs: BIRTHTIME_MS, ino: 801, path: 'keep.md', stamp: { mtime: 5000, size: 42 } });
       expect(originalOnFileChangeSpy).toHaveBeenCalledWith('keep.md');
     });
 

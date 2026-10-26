@@ -6,17 +6,31 @@ import { debounce } from 'obsidian';
 
 const STORE_NAME = 'path-ino';
 
+/**
+ * The modification time and size of a file, as Obsidian's own `TFile.stat` carries them.
+ */
+export interface FileStamp {
+  readonly mtime: number;
+  readonly size: number;
+}
+
 interface DatabaseEntry {
   // Absent from an entry written before 4.1.0.
   birthtimeMs?: number;
   ino: number;
+  // Absent from an entry written before 4.1.0, and from a folder's.
+  mtime?: number;
   path: string;
+  // Absent from an entry written before 4.1.0, and from a folder's.
+  size?: number;
 }
 
 interface PathInoMapSetParams {
   readonly birthtimeMs: number;
   readonly ino: number;
   readonly path: string;
+  // Only a file has one.
+  readonly stamp?: FileStamp | undefined;
 }
 
 const DB_VERSION = 1;
@@ -37,6 +51,10 @@ export class PathInoMap implements Disposable {
     this.processStoreActions();
   }, PROCESS_STORE_ACTIONS_DEBOUNCE_INTERVAL_IN_MILLISECONDS);
 
+  // The stamp tells the startup pass which cached files may have been replaced while Obsidian was closed, so it stats
+  // only those rather than the whole vault.
+  private readonly stamps = new Map<string, FileStamp>();
+
   private readonly twoWayMap = new TwoWayMap<string, number>();
 
   private get database(): IDBDatabase {
@@ -49,12 +67,14 @@ export class PathInoMap implements Disposable {
   public clear(): void {
     this.twoWayMap.clear();
     this.birthtimes.clear();
+    this.stamps.clear();
     this.addStoreAction((store) => store.clear());
   }
 
   public deletePath(path: string): void {
     this.twoWayMap.deleteKey(path);
     this.birthtimes.delete(path);
+    this.stamps.delete(path);
     this.addStoreAction((store) => store.delete(path));
   }
 
@@ -72,6 +92,10 @@ export class PathInoMap implements Disposable {
 
   public getPaths(): string[] {
     return [...this.twoWayMap.keys()];
+  }
+
+  public getStamp(path: string): FileStamp | undefined {
+    return this.stamps.get(path);
   }
 
   public async init(app: App): Promise<void> {
@@ -101,24 +125,33 @@ export class PathInoMap implements Disposable {
       if (entry.birthtimeMs !== undefined) {
         this.birthtimes.set(entry.path, entry.birthtimeMs);
       }
+      if (entry.mtime !== undefined && entry.size !== undefined) {
+        this.stamps.set(entry.path, { mtime: entry.mtime, size: entry.size });
+      }
     }
   }
 
   public set(params: PathInoMapSetParams): void {
-    const { birthtimeMs, ino, path } = params;
+    const { birthtimeMs, ino, path, stamp } = params;
     const oldPath = this.getPath(ino);
     this.twoWayMap.set(path, ino);
     if (oldPath !== undefined) {
       this.birthtimes.delete(oldPath);
+      this.stamps.delete(oldPath);
     }
     this.birthtimes.set(path, birthtimeMs);
+    if (stamp) {
+      this.stamps.set(path, stamp);
+    } else {
+      this.stamps.delete(path);
+    }
 
     this.addStoreAction((store) => {
       store.delete(path);
       if (oldPath !== undefined && oldPath !== path) {
         store.delete(oldPath);
       }
-      store.add({ birthtimeMs, ino, path } satisfies DatabaseEntry);
+      store.add({ birthtimeMs, ino, path, ...stamp && { mtime: stamp.mtime, size: stamp.size } } satisfies DatabaseEntry);
     });
   }
 

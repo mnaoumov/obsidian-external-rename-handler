@@ -30,15 +30,21 @@ import {
   relative,
   sep
 } from 'node:path';
-import { normalizePath } from 'obsidian';
+import {
+  normalizePath,
+  TFile
+} from 'obsidian';
 
 import type { OnFileChangeFunction } from './patches/file-system-adapter-on-file-change-patch-component.ts';
+import type { FileStamp } from './path-ino-map.ts';
 import type { PluginSettingsComponent } from './plugin-settings-component.ts';
 
 import { watch } from './desktop-chokidar-watch.ts';
 import { isDotFile } from './dot-file.ts';
 import { FileSystemAdapterOnFileChangePatchComponent } from './patches/file-system-adapter-on-file-change-patch-component.ts';
 import { PathInoMap } from './path-ino-map.ts';
+
+const NANOSECONDS_PER_MILLISECOND = 1_000_000;
 
 // `chokidar` 6 no longer exports `EventName` from any public entry point.
 type EventName = FSWatcherEventMap['all'][0];
@@ -128,9 +134,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         if (isDotFile(file.path)) {
           return;
         }
-        // A path recorded before birth times were persisted is stat-ed once more, so that a later offline rename of
-        // it can be vouched for.
-        if (isCached && this.pathInoMap.getBirthtime(file.path) !== undefined) {
+        if (isCached && this.isCachedEntryCurrent(file)) {
           return;
         }
         // `getFullPath`, never `getFullRealPath`: `file.path` is normalized (NFC), and only `getFullPath` maps it back to
@@ -142,7 +146,12 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
             offlineRenames.push({ file, newPath: file.path, oldPath });
           }
         }
-        this.pathInoMap.set({ birthtimeMs: toBirthtimeMs(stats), ino: stats.ino, path: file.path });
+        this.pathInoMap.set({
+          birthtimeMs: toBirthtimeMs(stats),
+          ino: stats.ino,
+          path: file.path,
+          stamp: file instanceof TFile ? toFileStamp(stats) : undefined
+        });
       },
       progressBarTitle: 'Initializing...',
       shouldShowProgressBar: true
@@ -281,7 +290,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         // longer leads the pending deletion back to the old path. Reuse within the same millisecond still passes as a
         // rename.
         const isReusedIno = oldBirthtimeMs !== undefined && oldBirthtimeMs !== birthtimeMs;
-        this.pathInoMap.set({ birthtimeMs, ino, path });
+        this.pathInoMap.set({ birthtimeMs, ino, path, stamp: event === 'add' ? toFileStamp(stats) : undefined });
 
         if (oldPath !== undefined) {
           this.pathInoMap.deletePath(oldPath);
@@ -297,13 +306,8 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         break;
       }
       case 'change': {
-        // A save that writes a temp file and renames it over the note gives the note a new inode, which `atomic` reports
-        // as a `change`. Left stale, the old inode turns the note's next external rename into a delete plus a create.
         if (stats) {
-          const ino = Number(stats.ino);
-          if (this.pathInoMap.getIno(path) !== ino) {
-            this.pathInoMap.set({ birthtimeMs: toBirthtimeMs(stats), ino, path });
-          }
+          this.refreshChangedFile(path, stats);
         }
         this.originalOnFileChange(realPath);
         break;
@@ -328,6 +332,30 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         this.originalOnFileChange(realPath);
         break;
       }
+    }
+  }
+
+  private isCachedEntryCurrent(file: TAbstractFile): boolean {
+    // A path recorded before birth times were persisted is stat-ed once more, so that a later offline rename of it can be
+    // vouched for.
+    if (this.pathInoMap.getBirthtime(file.path) === undefined) {
+      return false;
+    }
+
+    // A save that swapped a new copy in for the note while Obsidian was closed gave it a new inode. Obsidian read the
+    // note's modification time and size from the disk at startup, so a stamp that still matches them rules that out
+    // without a `stat` of ours.
+    return !(file instanceof TFile) || isSameStamp(this.pathInoMap.getStamp(file.path), file.stat);
+  }
+
+  private refreshChangedFile(path: string, stats: BigIntStats | Stats): void {
+    // A save that writes a temp file and renames it over the note gives the note a new inode, which `atomic` reports as a
+    // `change`. Left stale, the old inode turns the note's next external rename into a delete plus a create. The stamp is
+    // kept current too, so the next start does not stat the note again.
+    const ino = Number(stats.ino);
+    const stamp = toFileStamp(stats);
+    if (this.pathInoMap.getIno(path) !== ino || !isSameStamp(this.pathInoMap.getStamp(path), stamp)) {
+      this.pathInoMap.set({ birthtimeMs: toBirthtimeMs(stats), ino, path, stamp });
     }
   }
 
@@ -404,10 +432,23 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
   }
 }
 
+function isSameStamp(stamp: FileStamp | undefined, other: FileStamp): boolean {
+  return stamp?.mtime === other.mtime && stamp.size === other.size;
+}
+
 // Whole milliseconds, because a bigint `birthtimeMs` is truncated to them while the plain one carries a fraction, and the
 // two must compare equal for the same file.
 function toBirthtimeMs(stats: BigIntStats | Stats): number {
   return Math.floor(Number(stats.birthtimeMs));
+}
+
+// Rounded the way Obsidian rounds `TFile.stat.mtime`. A bigint `mtimeMs` is truncated, so its nanoseconds are rounded
+// instead.
+function toFileStamp(stats: BigIntStats | Stats): FileStamp {
+  return {
+    mtime: 'mtimeNs' in stats ? Math.round(Number(stats.mtimeNs) / NANOSECONDS_PER_MILLISECOND) : Math.round(stats.mtimeMs),
+    size: Number(stats.size)
+  };
 }
 
 // `chokidar` 6 hands `ignored` absolute paths, so a dot folder anywhere above the vault would hide the whole vault, and it

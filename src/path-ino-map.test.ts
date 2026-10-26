@@ -140,6 +140,26 @@ describe('PathInoMap', () => {
       expect(pathInoMap.getBirthtime('/test.md')).toBeUndefined();
     });
 
+    it('should keep the stamp of a file, and move it with a rename', () => {
+      pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/old.md', stamp: { mtime: 5000, size: 42 } });
+      expect(pathInoMap.getStamp('/old.md')).toEqual({ mtime: 5000, size: 42 });
+      pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/new.md', stamp: { mtime: 5000, size: 42 } });
+      expect(pathInoMap.getStamp('/old.md')).toBeUndefined();
+      expect(pathInoMap.getStamp('/new.md')).toEqual({ mtime: 5000, size: 42 });
+    });
+
+    it('should drop the stamp of a path set without one, deleted or cleared', () => {
+      pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/a', stamp: { mtime: 5000, size: 42 } });
+      pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/a' });
+      expect(pathInoMap.getStamp('/a')).toBeUndefined();
+      pathInoMap.set({ birthtimeMs: 1234, ino: 101, path: '/b.md', stamp: { mtime: 5000, size: 42 } });
+      pathInoMap.deletePath('/b.md');
+      expect(pathInoMap.getStamp('/b.md')).toBeUndefined();
+      pathInoMap.set({ birthtimeMs: 1234, ino: 102, path: '/c.md', stamp: { mtime: 5000, size: 42 } });
+      pathInoMap.clear();
+      expect(pathInoMap.getStamp('/c.md')).toBeUndefined();
+    });
+
     it('should flush store actions on debounce', () => {
       vi.useFakeTimers();
       pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/test.md' });
@@ -202,6 +222,24 @@ describe('PathInoMap', () => {
       expect(map2.getBirthtime('/existing.md')).toBe(1234);
     });
 
+    it('should load the persisted stamp, and none for a folder', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const app = createUniqueApp();
+
+      const map1 = new PathInoMap();
+      await map1.init(app);
+      map1.set({ birthtimeMs: 1234, ino: 42, path: '/existing.md', stamp: { mtime: 5000, size: 42 } });
+      map1.set({ birthtimeMs: 1234, ino: 43, path: '/folder' });
+      await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+
+      vi.useRealTimers();
+
+      const map2 = new PathInoMap();
+      await map2.init(app);
+      expect(map2.getStamp('/existing.md')).toEqual({ mtime: 5000, size: 42 });
+      expect(map2.getStamp('/folder')).toBeUndefined();
+    });
+
     // An entry written before 4.1.0 carries no birth time, and must not read as one recorded as 0.
     it('should leave the birth time unknown for an entry written without one', async () => {
       const app = createUniqueApp();
@@ -226,6 +264,7 @@ describe('PathInoMap', () => {
       await map.init(app);
       expect(map.getIno('/legacy.md')).toBe(42);
       expect(map.getBirthtime('/legacy.md')).toBeUndefined();
+      expect(map.getStamp('/legacy.md')).toBeUndefined();
       map[Symbol.dispose]();
     });
   });
