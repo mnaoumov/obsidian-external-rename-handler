@@ -253,7 +253,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
   }
 
   private handleWatcherEvent(params: ExternalRenameHandlerComponentHandleWatcherEventParams): void {
-    const { event, stats } = params;
+    const { event: $event, stats } = params;
     // The watcher reports the real on-disk path, which can be decomposed (NFD). The map, `adapter.files` and the vault are
     // keyed by the normalized path, as Obsidian's own indexing keys them, while the original `onFileChange` takes the real
     // one and normalizes it itself.
@@ -265,7 +265,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
       return;
     }
 
-    switch (event) {
+    switch ($event) {
       case 'add':
       case 'addDir': {
         if (path === '/') {
@@ -290,7 +290,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         // longer leads the pending deletion back to the old path. Reuse within the same millisecond still passes as a
         // rename.
         const isReusedIno = oldBirthtimeMs !== undefined && oldBirthtimeMs !== birthtimeMs;
-        this.pathInoMap.set({ birthtimeMs, ino, path, stamp: event === 'add' ? toFileStamp(stats) : undefined });
+        this.pathInoMap.set({ birthtimeMs, ino, path, stamp: $event === 'add' ? toFileStamp(stats) : undefined });
 
         if (oldPath !== undefined) {
           this.pathInoMap.deletePath(oldPath);
@@ -390,8 +390,8 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     });
 
     this.watcher.on('error', this.handleWatcherError.bind(this));
-    this.watcher.on('all', (event: EventName, path: string, stats?: Stats) => {
-      this.handleWatcherEvent(normalizeOptionalProperties<ExternalRenameHandlerComponentHandleWatcherEventParams>({ event, path, stats }));
+    this.watcher.on('all', ($event: EventName, path: string, stats?: Stats) => {
+      this.handleWatcherEvent(normalizeOptionalProperties<ExternalRenameHandlerComponentHandleWatcherEventParams>({ event: $event, path, stats }));
     });
   }
 
