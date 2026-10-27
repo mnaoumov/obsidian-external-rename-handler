@@ -50,11 +50,15 @@ A copy of the vault ships with every release. You can access it via any of the f
 
 Since **4.0.0** this plugin no longer rewrites links itself: [Advanced Rename and Delete Handler](https://github.com/mnaoumov/obsidian-advanced-rename-and-delete-handler) owns rename and delete handling for the whole vault. This plugin sees the rename your file manager made, that one updates the notes pointing at the old name. This plugin offers to install it, once, and carries your old `Should update links` value over for you to approve. Decline, and external renames are still detected — the file keeps its identity, its open tab and the file explorer follow it — but the links are left as they were.
 
-## Similar plugins
+## See also
 
-- [`Link Keeper`](https://github.com/RyotaUshio/obsidian-link-keeper) — not in the community directory; pairs a create with a delete that arrives within half a second, when the two share a name or a folder, and updates the links itself. It needs no inode, so it also runs on mobile, and it calls itself experimental; this plugin matches renames by inode, also catches renames made while Obsidian was closed, and leaves the links to `Advanced Rename and Delete Handler`.
-- [`Vault File Refresh`](https://community.obsidian.md/plugins/vault-file-refresh) — polls the whole vault so that files added or changed from outside reach Obsidian where its own watcher misses them, as under Flatpak or on a network drive; it does not recognize renames, which this plugin does.
-- [`Auto Refresh Explorer`](https://community.obsidian.md/plugins/auto-refresh-explorer) — polls a few chosen folders for new files that a sync tool wrote and adds them to Obsidian; it does not recognize renames either.
+[My other Obsidian resources](https://github.com/mnaoumov/obsidian-resources)
+
+| Plugin | Features | How `External Rename Handler` differs |
+| --- | --- | --- |
+| [`Auto Refresh Explorer`](https://community.obsidian.md/plugins/auto-refresh-explorer) | Polls selected folders; adds externally created files | Different event scope: recognizes external renames |
+| [`Link Keeper`](https://github.com/RyotaUshio/obsidian-link-keeper) | Unlisted/experimental; pairs create/delete within 0.5 seconds by name/folder; updates links; mobile | Alternative detection: inodes; catches offline renames too; delegates link updates |
+| [`Vault File Refresh`](https://community.obsidian.md/plugins/vault-file-refresh) | Polls for externally added/changed files; Flatpak/network-drive use | Different event scope: recognizes external renames |
 
 Last searched for similar plugins on 2026-10-26.
 
@@ -91,10 +95,6 @@ Contributions are welcome — see [CONTRIBUTING](./CONTRIBUTING.md) to get set u
 <a href="https://www.buymeacoffee.com/mnaoumov" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="60" width="217"></a>
 
 <!-- markdownlint-enable MD033 -->
-
-## My other Obsidian resources
-
-[See my other Obsidian resources](https://github.com/mnaoumov/obsidian-resources).
 
 ## License
 
