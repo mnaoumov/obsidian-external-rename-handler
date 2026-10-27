@@ -47,23 +47,24 @@ const BACKENDS = [
 
 // The slices of the plugin's component tree the backend switch reads: the settings component and the handler's `chokidar` watcher.
 interface ComponentTreeNode {
-  _children?: ComponentTreeNode[];
-  editAndSave?: (editor: (settings: PollingSettings) => void) => Promise<void>;
-  settings?: Partial<PollingSettings>;
-  watcher?: null | WatcherSlice;
+  readonly _children?: ComponentTreeNode[];
+  readonly editAndSave?: (editor: (settings: PollingSettings) => void) => Promise<void>;
+  readonly settings?: Partial<PollingSettings>;
+  readonly watcher?: null | WatcherSlice;
 }
 
 interface PollingSettings {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The settings editor switches watcher backends between test cases.
   pollingIntervalInMilliseconds: number;
 }
 
 interface WatcherOptionsSlice {
-  backend: string;
+  readonly backend: string;
 }
 
 interface WatcherSlice {
-  options: WatcherOptionsSlice;
-  readyEmitted: boolean;
+  readonly options: WatcherOptionsSlice;
+  readonly readyEmitted: boolean;
 }
 
 function getFullPath(path: string): string {

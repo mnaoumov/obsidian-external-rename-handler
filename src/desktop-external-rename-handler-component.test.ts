@@ -37,41 +37,43 @@ const STRICT_PROXY_TARGET_SYMBOL = Symbol.for('strictProxyTarget');
 const ROOT_INO = 100;
 
 interface AppGlobal {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Each fixture installs its app on the global window.
   app: AppOriginal;
 }
 
 interface AsyncEventSource {
-  offref: (eventRef: unknown) => void;
+  readonly offref: (eventRef: unknown) => void;
 }
 
 interface ComponentPrivate {
-  onLayoutReady: () => Promise<void>;
-  originalOnFileChange: (path: null | string) => void;
+  readonly onLayoutReady: () => Promise<void>;
+  readonly originalOnFileChange: (path: null | string) => void;
 }
 
 interface EventRef {
-  asyncEventSource: AsyncEventSource;
+  readonly asyncEventSource: AsyncEventSource;
 }
 
 interface FileEntry {
-  realpath: string;
+  readonly realpath: string;
 }
 
 interface MutablePathFile {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The rename fixture updates the file path in place.
   path: string;
 }
 
 interface PathInoMapStub {
-  [Symbol.dispose]: Mock<() => void>;
-  clear: Mock<() => void>;
-  deletePath: Mock<(path: string) => void>;
-  getBirthtime: Mock<(path: string) => number | undefined>;
-  getIno: Mock<(path: string) => number | undefined>;
-  getPath: Mock<(ino: number) => string | undefined>;
-  getPaths: Mock<() => string[]>;
-  getStamp: Mock<(path: string) => Stamp | undefined>;
-  init: Mock<(app: AppOriginal) => Promise<void>>;
-  set: Mock<(params: SetParams) => void>;
+  readonly clear: Mock<() => void>;
+  readonly deletePath: Mock<(path: string) => void>;
+  readonly getBirthtime: Mock<(path: string) => number | undefined>;
+  readonly getIno: Mock<(path: string) => number | undefined>;
+  readonly getPath: Mock<(ino: number) => string | undefined>;
+  readonly getPaths: Mock<() => string[]>;
+  readonly getStamp: Mock<(path: string) => Stamp | undefined>;
+  readonly init: Mock<(app: AppOriginal) => Promise<void>>;
+  readonly [Symbol.dispose]: Mock<() => void>;
+  readonly set: Mock<(params: SetParams) => void>;
 }
 
 interface SetParams {
@@ -87,26 +89,28 @@ interface Stamp {
 }
 
 interface TestAdapter {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The ignored-path test changes the vault root.
   basePath: string;
-  files: Record<string, FileEntry>;
+  readonly files: Record<string, FileEntry>;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The startup test replaces path resolution for decomposed names.
   getFullPath: (path: string) => string;
-  onFileChange: (path: null | string) => void;
+  readonly onFileChange: (path: null | string) => void;
 }
 
 interface WatcherMock {
-  add: (paths: string | string[]) => WatcherMock;
-  close: () => Promise<void>;
-  on: (event: string, handler: (...$arguments: unknown[]) => void) => WatcherMock;
+  readonly add: (paths: string | string[]) => WatcherMock;
+  readonly close: () => Promise<void>;
+  readonly on: (event: string, handler: (...$arguments: unknown[]) => void) => WatcherMock;
 }
 
 type WatcherOnCalls = [string, (...$arguments: unknown[]) => void][];
 
 interface WatcherOnMock {
-  mock: WatcherOnMockData;
+  readonly mock: WatcherOnMockData;
 }
 
 interface WatcherOnMockData {
-  calls: WatcherOnCalls;
+  readonly calls: WatcherOnCalls;
 }
 
 interface WatchOptions {
