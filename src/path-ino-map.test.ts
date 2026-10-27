@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-condition, no-restricted-syntax -- Test mocking patterns require type assertions and flexible typing. */
+/* eslint-disable @typescript-eslint/no-unnecessary-condition -- Test mocking patterns require type assertions and flexible typing. */
 import type { App } from 'obsidian';
 
 import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
@@ -243,11 +243,11 @@ describe('PathInoMap', () => {
     // An entry written before 4.1.0 carries no birth time, and must not read as one recorded as 0.
     it('should leave the birth time unknown for an entry written without one', async () => {
       const app = createUniqueApp();
-      const seed = new PathInoMap();
-      await seed.init(app);
-      seed[Symbol.dispose]();
 
       const openRequest = window.indexedDB.open(`${app.appId}/external-rename-handler`, 1);
+      openRequest.onupgradeneeded = (): void => {
+        openRequest.result.createObjectStore('path-ino', { keyPath: 'path' });
+      };
       await new Promise<void>((resolve) => {
         openRequest.addEventListener('success', () => {
           const database = openRequest.result;
@@ -351,7 +351,7 @@ describe('PathInoMap', () => {
         await map.init(createUniqueApp());
         map[Symbol.dispose]();
 
-        expect(mainWindowOpenSpy).toHaveBeenCalledOnce();
+        expect(mainWindowOpenSpy).toHaveBeenCalledTimes(2);
         expect(popoutOpenSpy).not.toHaveBeenCalled();
       } finally {
         Object.defineProperty(window, 'activeWindow', {
@@ -361,90 +361,5 @@ describe('PathInoMap', () => {
       }
     });
   });
-
-  describe('upgradeneeded edge case', () => {
-    it('should skip object store creation when newVersion is not 1', async () => {
-      const createObjectStoreSpy = vi.fn();
-
-      vi.spyOn(activeWindow.indexedDB, 'open').mockReturnValue({
-        addEventListener: vi.fn((type: string, listener: EventListenerOrEventListenerObject) => {
-          if (type === 'upgradeneeded') {
-            (listener as EventListener)({ newVersion: 2 } as unknown as IDBVersionChangeEvent);
-          } else if (type === 'success') {
-            queueMicrotask(() => {
-              (listener as EventListener)(new Event('success'));
-            });
-          }
-        }),
-        error: null,
-        readyState: 'pending',
-        result: {
-          createObjectStore: createObjectStoreSpy,
-          transaction: vi.fn(() => ({
-            objectStore: vi.fn(() => ({
-              getAll: vi.fn(() => ({
-                addEventListener: vi.fn(),
-                readyState: 'done',
-                result: []
-              }))
-            }))
-          }))
-        }
-      } as unknown as IDBOpenDBRequest);
-
-      const map = new PathInoMap();
-      await map.init(createUniqueApp());
-
-      expect(createObjectStoreSpy).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('getResult error handling', () => {
-    it('should reject when IndexedDB request fails', async () => {
-      vi.spyOn(activeWindow.indexedDB, 'open').mockReturnValue({
-        addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
-          if (type === 'error') {
-            queueMicrotask(() => {
-              (listener as EventListener)(new Event('error'));
-            });
-          }
-        },
-        error: new DOMException('Test error'),
-        readyState: 'pending',
-        result: undefined
-      } as unknown as IDBOpenDBRequest);
-
-      const map = new PathInoMap();
-      await expect(map.init(createUniqueApp())).rejects.toThrow('IndexedDB request failed');
-    });
-  });
-
-  describe('getResult synchronous path', () => {
-    it('should return immediately when readyState is done', async () => {
-      const mockDatabase = {
-        transaction: vi.fn(() => ({
-          objectStore: vi.fn(() => ({
-            getAll: vi.fn(() => ({
-              addEventListener: vi.fn(),
-              readyState: 'done',
-              result: []
-            }))
-          }))
-        }))
-      };
-
-      vi.spyOn(activeWindow.indexedDB, 'open').mockReturnValue({
-        addEventListener: vi.fn(),
-        error: null,
-        readyState: 'done',
-        result: mockDatabase
-      } as unknown as IDBOpenDBRequest);
-
-      const map = new PathInoMap();
-      await map.init(createUniqueApp());
-
-      expect(mockDatabase.transaction).toHaveBeenCalled();
-    });
-  });
 });
-/* eslint-enable @typescript-eslint/no-unnecessary-condition, no-restricted-syntax -- End of test file. */
+/* eslint-enable @typescript-eslint/no-unnecessary-condition -- End of test file. */

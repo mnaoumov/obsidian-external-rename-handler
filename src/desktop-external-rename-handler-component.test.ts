@@ -181,6 +181,10 @@ vi.mock('./path-ino-map.ts', () => ({
     public init = hoisted.pathInoMapStub.init;
     public set = hoisted.pathInoMapStub.set;
     public [Symbol.dispose] = hoisted.pathInoMapStub[Symbol.dispose];
+    public async disposeAsync(): Promise<void> {
+      this[Symbol.dispose]();
+      await noopAsync();
+    }
   }
 }));
 
@@ -378,6 +382,23 @@ describe('ExternalRenameHandlerComponent', () => {
   });
 
   describe('onLayoutReady', () => {
+    it('should not initialize another map once unloading has started', async () => {
+      const component = createComponent();
+      abortController.abort();
+      await castTo<ComponentPrivate>(component).onLayoutReady();
+      expect(hoisted.pathInoMapStub.init).not.toHaveBeenCalled();
+    });
+
+    it('should not install a watcher when unloading starts during map initialization', async () => {
+      hoisted.pathInoMapStub.init.mockImplementationOnce(async () => {
+        abortController.abort();
+        await noopAsync();
+      });
+      const component = createComponent();
+      await castTo<ComponentPrivate>(component).onLayoutReady();
+      expect(FSWatcher).not.toHaveBeenCalled();
+    });
+
     it('should initialize the path/ino map', async () => {
       await createReadyComponent();
       expect(hoisted.pathInoMapStub.init).toHaveBeenCalled();
