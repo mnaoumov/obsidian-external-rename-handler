@@ -100,7 +100,7 @@ interface TestAdapter {
 interface WatcherMock {
   readonly add: (paths: string | string[]) => WatcherMock;
   readonly close: () => Promise<void>;
-  readonly on: (event: string, handler: (...$arguments: unknown[]) => void) => WatcherMock;
+  readonly on: ($event: string, handler: (...$arguments: unknown[]) => void) => WatcherMock;
 }
 
 type WatcherOnCalls = [string, (...$arguments: unknown[]) => void][];
@@ -235,8 +235,8 @@ function createApp(): AppOriginal {
 
 function createComponent(): ExternalRenameHandlerComponent {
   abortController = new AbortController();
-  const on = castTo<PluginSettingsComponent['on']>(vi.fn((event: string, handler: () => Promise<void>): EventRef => {
-    if (event === 'loadSettings') {
+  const on = castTo<PluginSettingsComponent['on']>(vi.fn(($event: string, handler: () => Promise<void>): EventRef => {
+    if ($event === 'loadSettings') {
       hoisted.capturedLoadSettingsHandlers.push(handler);
     } else {
       hoisted.capturedSaveSettingsHandlers.push(handler);
@@ -297,17 +297,17 @@ function getWatcher(index = -1): WatcherMock {
   return castTo<WatcherMock>(instance);
 }
 
-function getWatcherHandler(event: string): (...$arguments: unknown[]) => void {
+function getWatcherHandler($event: string): (...$arguments: unknown[]) => void {
   const instances = vi.mocked(FSWatcher).mock.instances;
   for (let index = instances.length - 1; index >= 0; index--) {
     const watcher = castTo<WatcherMock>(instances[index]);
     const onMock = castTo<WatcherOnMock>(watcher.on);
-    const call = onMock.mock.calls.find((c) => c[0] === event);
+    const call = onMock.mock.calls.find((c) => c[0] === $event);
     if (call) {
       return call[1];
     }
   }
-  throw new Error(`Watcher handler for '${event}' was not registered.`);
+  throw new Error(`Watcher handler for '${$event}' was not registered.`);
 }
 
 function getWatchOptions(): WatchOptions {

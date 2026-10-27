@@ -104,8 +104,8 @@ export class PathInoMap implements Disposable {
     // connection to that popout, and closing the popout then closes the connection under a plugin that is still
     // loaded and still queueing writes.
     const request = window.indexedDB.open(`${app.appId}/external-rename-handler`, DB_VERSION);
-    request.addEventListener('upgradeneeded', (event) => {
-      if (event.newVersion !== 1) {
+    request.addEventListener('upgradeneeded', ($event) => {
+      if ($event.newVersion !== 1) {
         return;
       }
       const database = request.result;
