@@ -112,9 +112,16 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     // that already owns an open IndexedDB connection and an armed debounced flush. Dispose the outgoing one before
     // replacing it, and hand the incoming one to the component's own teardown, or the orphan keeps its connection open
     // and fires its flush into a database nobody owns any more.
-    this.pathInoMap[Symbol.dispose]();
+    await this.pathInoMap.disposeAsync();
+    const { abortSignal } = this.abortSignalComponent;
+    if (abortSignal.aborted) {
+      return;
+    }
     this.pathInoMap = this.registerDisposable(new PathInoMap());
     await this.pathInoMap.init(this.app);
+    if (this.abortSignalComponent.abortSignal.aborted) {
+      return;
+    }
     const rootIno = this.pathInoMap.getIno('/');
     const rootStats = await stat(this.fileSystemAdapter.basePath);
     if (rootIno !== rootStats.ino) {

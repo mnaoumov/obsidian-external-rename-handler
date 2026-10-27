@@ -1,6 +1,7 @@
 import {
   rename,
   rm,
+  stat,
   writeFile
 } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -158,6 +159,83 @@ describe('Renames made while the plugin was not running', () => {
     await rm(getFullPath(RENAMED_NOTE_PATH), { force: true });
     await waitForVaultToSee(ORIGINAL_NOTE_PATH, false);
     await waitForVaultToSee(RENAMED_NOTE_PATH, false);
+  });
+
+  it('imports the legacy device observations and detects an offline rename without vault data files', async () => {
+    await writeFile(getFullPath(ORIGINAL_NOTE_PATH), 'legacy content', 'utf-8');
+    await waitForVaultToSee(ORIGINAL_NOTE_PATH, true);
+    await setPluginEnabled(false);
+    const rootStats = await stat(getFullPath(''));
+    const noteStats = await stat(getFullPath(ORIGINAL_NOTE_PATH));
+    await rename(getFullPath(ORIGINAL_NOTE_PATH), getFullPath(RENAMED_NOTE_PATH));
+    await waitForVaultToSee(RENAMED_NOTE_PATH, true);
+    await waitForVaultToSee(ORIGINAL_NOTE_PATH, false);
+    await evalInObsidian({
+      async callback({ app, entries }) {
+        // This is the isolated harness vault. Removing its new store simulates the first upgraded startup.
+        await new Promise<void>((resolve, reject) => {
+          const request = window.indexedDB.deleteDatabase(`obsidian-lib:${JSON.stringify([app.appId, 'external-rename-handler', 'path-ino-v1'])}`);
+          request.addEventListener('success', () => {
+            resolve();
+          });
+          request.addEventListener('error', () => {
+            reject(new Error('Could not reset the test store'));
+          });
+        });
+        await new Promise<void>((resolve, reject) => {
+          const request = window.indexedDB.deleteDatabase(`${app.appId}/external-rename-handler`);
+          request.addEventListener('success', () => {
+            resolve();
+          });
+          request.addEventListener('error', () => {
+            reject(new Error('Could not reset the legacy test store'));
+          });
+        });
+        await new Promise<void>((resolve, reject) => {
+          const request = window.indexedDB.open(`${app.appId}/external-rename-handler`, 1);
+          request.addEventListener('upgradeneeded', () => {
+            request.result.createObjectStore('path-ino', { keyPath: 'path' });
+          });
+          request.addEventListener('error', () => {
+            reject(new Error('Could not seed legacy observations'));
+          });
+          request.addEventListener('success', () => {
+            const database = request.result;
+            const transaction = database.transaction('path-ino', 'readwrite');
+            const store = transaction.objectStore('path-ino');
+            store.clear();
+            for (const entry of entries) {
+              store.put(entry);
+            }
+            transaction.addEventListener('complete', () => {
+              database.close();
+              resolve();
+            });
+            transaction.addEventListener('abort', () => {
+              database.close();
+              reject(new Error('Legacy seed aborted'));
+            });
+          });
+        });
+      },
+      input: {
+        entries: [
+          { birthtimeMs: Math.trunc(rootStats.birthtimeMs), ino: rootStats.ino, path: '/' },
+          { birthtimeMs: Math.trunc(noteStats.birthtimeMs), ino: noteStats.ino, path: ORIGINAL_NOTE_PATH }
+        ]
+      },
+      vaultPath: getTemporaryVault().path
+    });
+    await startRecordingRenames();
+    await setPluginEnabled(true);
+    const records = await waitForRecordedRename({ newPath: RENAMED_NOTE_PATH, oldPath: ORIGINAL_NOTE_PATH });
+    expect(records.filter((record) => record.newPath === RENAMED_NOTE_PATH)).toHaveLength(1);
+    const dataFiles = await evalInObsidian({
+      callback: ({ app }) => app.vault.getFiles().filter((file) => file.path.startsWith('Plugin data/')).map((file) => file.path),
+      input: {},
+      vaultPath: getTemporaryVault().path
+    });
+    expect(dataFiles).toEqual([]);
   });
 
   /*
