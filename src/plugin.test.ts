@@ -23,14 +23,16 @@ const PLUGIN_ID = 'external-rename-handler';
 const RENAME_DELETE_HANDLER_IMPORT_TIMEOUT_IN_MILLISECONDS = 30_000;
 
 interface AppGlobal {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Each fixture installs its app on the global window.
   app: AppOriginal;
 }
 
 interface ComponentModuleActual {
-  Component: new () => object;
+  readonly Component: new () => object;
 }
 
 interface PluginsLike {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Fixture setup seeds the mock plugin registry.
   manifests: Record<string, unknown>;
 }
 
@@ -50,7 +52,7 @@ interface SettingsMigrationComponentParams {
 }
 
 interface SettingTabsHolder {
-  settingTabs__: unknown[];
+  readonly settingTabs__: unknown[];
 }
 
 // --- Allowed mocks: the plugin's OWN sibling modules ---

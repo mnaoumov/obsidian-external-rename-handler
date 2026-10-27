@@ -16,13 +16,13 @@ export interface FileStamp {
 
 interface DatabaseEntry {
   // Absent from an entry written before 4.1.0.
-  birthtimeMs?: number;
-  ino: number;
+  readonly birthtimeMs?: number;
+  readonly ino: number;
   // Absent from an entry written before 4.1.0, and from a folder's.
-  mtime?: number;
-  path: string;
+  readonly mtime?: number;
+  readonly path: string;
   // Absent from an entry written before 4.1.0, and from a folder's.
-  size?: number;
+  readonly size?: number;
 }
 
 interface PathInoMapSetParams {

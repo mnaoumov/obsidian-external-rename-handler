@@ -31,11 +31,11 @@ const EXPECTED_BOUND_PROPERTIES = [
 const BANNER_ROW_INDEX = 0;
 
 interface SearchableDefinition {
-  searchable?: boolean;
+  readonly searchable?: boolean;
 }
 
 interface VisibleDefinition {
-  visible: () => boolean;
+  readonly visible: () => boolean;
 }
 
 let getSuggestedPluginState: ReturnType<typeof vi.fn<() => SuggestedPluginState>>;

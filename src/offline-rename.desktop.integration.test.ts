@@ -24,8 +24,8 @@ const REPLACEMENT_TEMP_PATH = '.offline-rename-replacement.tmp';
 const REPLACED_CONTENT = 'content replaced by a save that swapped a new copy in';
 
 interface ComponentTreeNode {
-  _children?: ComponentTreeNode[];
-  watcher?: null | WatcherSlice;
+  readonly _children?: ComponentTreeNode[];
+  readonly watcher?: null | WatcherSlice;
 }
 
 interface RenameRecord {
@@ -34,11 +34,12 @@ interface RenameRecord {
 }
 
 interface RenameRecorderWindow {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Each test resets the shared listener's recorded renames.
   offlineRenameRecords?: RenameRecord[];
 }
 
 interface WatcherSlice {
-  readyEmitted: boolean;
+  readonly readyEmitted: boolean;
 }
 
 function getFullPath(path: string): string {
