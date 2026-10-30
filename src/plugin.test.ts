@@ -247,10 +247,13 @@ describe('Plugin', () => {
       expect(castTo<SettingTabsHolder>(plugin).settingTabs__).toHaveLength(1);
     });
 
-    it('should register the open demo vault command via its command handler', async () => {
+    it('should register the report bug and open demo vault commands via their command handlers', async () => {
       const plugin = new Plugin(app, manifest);
       const addCommandSpy = vi.spyOn(plugin, 'addCommand');
       await plugin.onload();
+      expect(addCommandSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'report-bug' })
+      );
       expect(addCommandSpy).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'open-demo-vault' })
       );
