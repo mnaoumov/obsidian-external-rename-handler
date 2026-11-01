@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 4.1.0
+
+- docs(readme): point bug reports at the Report a bug command
+- feat: add a Report a bug command
+- docs: add issue-filing instructions for AI agents
+- chore(github): give the bug form the field ids bug-report links prefill
+- build(deps): override re2js to ^2.9.1 for GHSA-gg6h-894w-4m9c
+- build(deps): bump typescript-dev-toolkit to ^5.2.0
+- build(deps): bump @mnaoumov/typescript-dev-toolkit to ^5.1.0
+- feat: persist inode observations in device-local records
+- chore: adopt shared keyword identifier lint rule
+- chore: adopt readonly interface members
+- docs(readme): combine related resources and plugin comparisons
+- docs: cut the README down to a landing page
+- docs: add a Similar plugins section to the README
+- docs: measure the rename missed straight after a save that replaced the note
+- fix: notice a note a save replaced while Obsidian was closed
+- fix: tell a reused inode from a live rename by its birth time
+- fix: keep recognizing renames of a note after a save that replaced it
+- docs: document which file systems rename detection works on
+- feat: detect renames made while Obsidian was closed
+
 ## 4.0.5
 
 - test(demo-vault): floor `CodeScript Toolkit` at 15.0.0
