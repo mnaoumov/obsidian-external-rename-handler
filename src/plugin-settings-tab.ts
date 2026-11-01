@@ -42,6 +42,8 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
           f.appendText('The higher the value, the more delay might occur to detect the missed file changes.');
           f.createEl('br');
           f.appendText('Use 0 to disable polling.');
+          f.createEl('br');
+          f.appendText('A drive that never changes a folder\'s modification time, such as FAT32 or exFAT under Windows, is not polled, because polling would see no new file there.');
         }),
         name: 'Polling interval in milliseconds',
         render: (setting) => {

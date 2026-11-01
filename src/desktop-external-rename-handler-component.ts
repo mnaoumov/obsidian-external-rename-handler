@@ -27,6 +27,7 @@ import { getDataAdapterEx } from '@obsidian-typings/obsidian-public-latest/imple
 import { stat } from 'node:fs/promises';
 import {
   isAbsolute,
+  join,
   relative,
   sep
 } from 'node:path';
@@ -40,6 +41,7 @@ import type { FileStamp } from './path-ino-map.ts';
 import type { PluginSettingsComponent } from './plugin-settings-component.ts';
 
 import { watch } from './desktop-chokidar-watch.ts';
+import { doesFolderMtimeTrackNewEntries } from './desktop-folder-mtime-probe.ts';
 import { isDotFile } from './dot-file.ts';
 import { FileSystemAdapterOnFileChangePatchComponent } from './patches/file-system-adapter-on-file-change-patch-component.ts';
 import { PathInoMap } from './path-ino-map.ts';
@@ -86,6 +88,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
   private _originalOnFileChange?: OnFileChangeFunction;
 
   private readonly abortSignalComponent: AbortSignalComponent;
+  private canPollingSeeNewEntriesPromise?: Promise<boolean>;
   private readonly fileSystemAdapter: FileSystemAdapter;
 
   private pathInoMap = new PathInoMap();
@@ -213,6 +216,21 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
    * @param stats - The stats of that file.
    * @returns The old path, or `null` when the file is not a clean offline rename.
    */
+  private async canPollingSeeNewEntries(): Promise<boolean> {
+    // The answer belongs to the vault's volume, so it is found once and not again on every settings save. The probe
+    // folder goes in the config folder, which Obsidian hides from the vault, on the volume of the vault root.
+    this.canPollingSeeNewEntriesPromise ??= (async (): Promise<boolean> => {
+      const canSee = await doesFolderMtimeTrackNewEntries(join(this.fileSystemAdapter.basePath, this.app.vault.configDir));
+      if (!canSee) {
+        console.warn(
+          'External Rename Handler: this drive does not update a folder\'s modification time when a file is created in it, so polling would see no new file. Using the native watcher instead.'
+        );
+      }
+      return canSee;
+    })();
+    return this.canPollingSeeNewEntriesPromise;
+  }
+
   private getOfflineRenameOldPath(path: string, stats: Stats): null | string {
     const oldPath = this.pathInoMap.getPath(stats.ino);
     if (oldPath === undefined || oldPath === path) {
@@ -367,6 +385,15 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
   }
 
   private async registerWatcher(): Promise<void> {
+    const { pollingIntervalInMilliseconds } = this.pluginSettingsComponent.settings;
+    // Polling sees a new entry only through its folder's modification time, which the FAT32 and exFAT drivers of Windows
+    // never change, so there it would see no new file at all, and the native backend is used instead. This is awaited
+    // before anything else, so that two calls waiting on the probe go on to replace the watcher one after the other.
+    const isPolling = pollingIntervalInMilliseconds > 0 && await this.canPollingSeeNewEntries();
+    if (this.abortSignalComponent.abortSignal.aborted) {
+      return;
+    }
+
     if (this.watcher) {
       await this.watcher.close();
     } else {
@@ -374,9 +401,6 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     }
 
     const adapter = getDataAdapterEx(this.app);
-
-    const { pollingIntervalInMilliseconds } = this.pluginSettingsComponent.settings;
-    const isPolling = pollingIntervalInMilliseconds > 0;
 
     this.watcher = watch('.', {
       // `chokidar` 6 rejects a polling interval that is not positive even on a native backend, so it goes to polling alone.

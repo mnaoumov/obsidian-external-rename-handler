@@ -12,11 +12,15 @@ import type {
 } from 'obsidian';
 import type { Mock } from 'vitest';
 
-import { noopAsync } from '@mnaoumov/typescript-lib/function';
+import {
+  noop,
+  noopAsync
+} from '@mnaoumov/typescript-lib/function';
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
 import { waitForAllAsyncOperations } from '@mnaoumov/typescript-test-toolkit/async-operation-tracking';
 import { strictProxy } from '@mnaoumov/typescript-test-toolkit/strict-proxy';
 import { FSWatcher } from 'chokidar';
+import { join } from 'node:path';
 import {
   App,
   TFile,
@@ -136,6 +140,7 @@ const hoisted = vi.hoisted(() => {
   return {
     capturedLoadSettingsHandlers: [] as (() => Promise<void>)[],
     capturedSaveSettingsHandlers: [] as (() => Promise<void>)[],
+    doesFolderMtimeTrackNewEntries: vi.fn((_parentPath: string): Promise<boolean> => Promise.resolve(true)),
     pathInoMapStub,
     settings: {
       deletionRenameDetectionTimeoutInMilliseconds: 500,
@@ -167,7 +172,11 @@ vi.mock('@obsidian-typings/obsidian-public-latest/implementations', () => ({
   getDataAdapterEx: vi.fn(() => ({ basePath: '/test-vault' }))
 }));
 
-// --- Allowed mocks: the plugin's OWN sibling module ---
+// --- Allowed mocks: the plugin's OWN sibling modules ---
+
+vi.mock('./desktop-folder-mtime-probe.ts', () => ({
+  doesFolderMtimeTrackNewEntries: hoisted.doesFolderMtimeTrackNewEntries
+}));
 
 vi.mock('./path-ino-map.ts', () => ({
   PathInoMap: class {
@@ -359,6 +368,7 @@ describe('ExternalRenameHandlerComponent', () => {
     hoisted.pathInoMapStub.getStamp.mockReturnValue(undefined);
     hoisted.pathInoMapStub.init.mockResolvedValue(undefined);
     hoisted.stat.mockResolvedValue({ birthtimeMs: 0, ino: ROOT_INO });
+    hoisted.doesFolderMtimeTrackNewEntries.mockResolvedValue(true);
     hoisted.settings.deletionRenameDetectionTimeoutInMilliseconds = 500;
     hoisted.settings.pollingIntervalInMilliseconds = 2000;
     hoisted.settings.shouldDetectOfflineRenames = true;
@@ -993,6 +1003,48 @@ describe('ExternalRenameHandlerComponent', () => {
       // `chokidar` 6 throws on a polling interval of 0 whatever the backend.
       expect(getWatchOptions()).not.toHaveProperty('pollingInterval');
       expect(getWatchOptions()).not.toHaveProperty('pollingBinaryInterval');
+    });
+
+    // The FAT32 and exFAT drivers of Windows never change a folder's modification time, so polling would see no new file.
+    it('should use the native backend when a folder\'s modification time does not track new entries', async () => {
+      hoisted.doesFolderMtimeTrackNewEntries.mockResolvedValue(false);
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(noop);
+      await createReadyComponent();
+      expect(hoisted.doesFolderMtimeTrackNewEntries).toHaveBeenCalledWith(join('/test-vault', app.vault.configDir));
+      expect(getWatchOptions()).toEqual(expect.objectContaining({ backend: 'auto' }));
+      expect(getWatchOptions()).not.toHaveProperty('pollingInterval');
+      expect(warnSpy).toHaveBeenCalledOnce();
+    });
+
+    it('should probe the volume once, not on every settings save', async () => {
+      await createReadyComponent();
+      await hoisted.capturedSaveSettingsHandlers[0]?.();
+      expect(hoisted.doesFolderMtimeTrackNewEntries).toHaveBeenCalledOnce();
+      expect(getWatchOptions()).toEqual(expect.objectContaining({ backend: 'polling' }));
+    });
+
+    it('should not probe when polling is disabled', async () => {
+      hoisted.settings.pollingIntervalInMilliseconds = 0;
+      await createReadyComponent();
+      expect(hoisted.doesFolderMtimeTrackNewEntries).not.toHaveBeenCalled();
+    });
+
+    it('should not start a watcher when unloaded while probing', async () => {
+      let resolveProbe: (canSee: boolean) => void = noop;
+      hoisted.doesFolderMtimeTrackNewEntries.mockReturnValue(
+        new Promise<boolean>((resolve) => {
+          resolveProbe = resolve;
+        })
+      );
+      const component = createComponent();
+      component.load();
+      capturedLayoutReadyCallback?.();
+      await sleep(0);
+      abortController.abort();
+      resolveProbe(true);
+      await flush();
+      expect(FSWatcher).not.toHaveBeenCalled();
+      component.unload();
     });
 
     // `chokidar` 6 arms its timers with the DOM `setTimeout` unless handed a scheduler, and then fails on `unref()`.
