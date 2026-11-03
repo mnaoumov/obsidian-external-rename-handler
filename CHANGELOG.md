@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 4.1.1
+
+- docs: link to the Obsidian resources page
+- fix: see new files on FAT32 and exFAT drives under Windows with polling on
+- docs(demo-vault): add the measured FAT32 and exFAT rows for Windows
+
 ## 4.1.0
 
 - docs(readme): point bug reports at the Report a bug command
