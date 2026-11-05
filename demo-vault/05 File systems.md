@@ -30,7 +30,7 @@ Not tested at all: exFAT on Linux, ReFS, APFS and HFS+ on macOS, NFS, Btrfs, Dro
 
 ## A rename straight after a save that replaced the note
 
-On every file system measured, a save that writes a new copy and swaps it in for the note gives the note a new inode. Most ways of writing a file on Windows rewrite it in place and keep its inode - PowerShell's `Set-Content` and `Out-File`, .NET's `File.WriteAllText` and Node's `fs.writeFile` all did - while `git checkout` of a changed note gave it a new one.
+On every file system measured, a save that writes a new copy and swaps it in for the note gives the note a new inode. Most ways of writing a file on Windows rewrite it in place and keep its inode - `PowerShell`'s `Set-Content` and `Out-File`, .NET's `File.WriteAllText` and Node's `fs.writeFile` all did - while `git checkout` of a changed note gave it a new one.
 
 While Obsidian is running, the plugin sees that save as an edit and records the new inode, so a later rename is still recognized. A later rename, but not one made straight after the save: the polling watcher looks at the disk once per `pollingIntervalInMilliseconds` (`2000` by default), and a rename made before it has looked at the new copy reaches the plugin as nothing but a new name with an unknown inode and an old name that is gone. That is exactly what deleting one note and creating an unrelated one looks like, so the plugin reports a delete and a create.
 

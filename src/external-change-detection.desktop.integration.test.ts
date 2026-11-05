@@ -133,6 +133,32 @@ async function setPollingInterval(pollingIntervalInMilliseconds: number, expecte
   });
 }
 
+async function waitForAppendedContentOfCreatedNote(): Promise<string> {
+  return await evalInObsidian({
+    async callback({ app, expectedContent: content, lib: { waitUntil }, path: notePath, WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds }) {
+      await waitUntil({
+        message: `The vault never picked up the external edit of ${notePath}`,
+        // `vault.read` reads the disk, so it sees an edit before the watcher does. The size is the vault's own record,
+        // which only the watcher's event updates.
+        predicate: async () => {
+          const file = app.vault.getFileByPath(notePath);
+          return file !== null && file.stat.size === new TextEncoder().encode(content).length && (await app.vault.read(file)) === content;
+        },
+        timeoutInMilliseconds
+      });
+
+      const file = app.vault.getFileByPath(notePath);
+      return file ? await app.vault.read(file) : '';
+    },
+    input: {
+      expectedContent: APPENDED_CONTENT,
+      path: CREATED_NOTE_PATH,
+      WAIT_TIMEOUT_IN_MILLISECONDS
+    },
+    vaultPath: getTemporaryVault().path
+  });
+}
+
 async function waitForOpenLeafToShow(path: string): Promise<void> {
   await evalInObsidian({
     async callback({ app, lib: { waitUntil }, path: notePath, WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds }) {
@@ -143,32 +169,6 @@ async function waitForOpenLeafToShow(path: string): Promise<void> {
       });
     },
     input: {
-      path,
-      WAIT_TIMEOUT_IN_MILLISECONDS
-    },
-    vaultPath: getTemporaryVault().path
-  });
-}
-
-async function waitForVaultContent(path: string, expectedContent: string): Promise<string> {
-  return await evalInObsidian({
-    async callback({ app, expectedContent: content, lib: { waitUntil }, path: notePath, WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds }) {
-      await waitUntil({
-        message: `The vault never picked up the external edit of ${notePath}`,
-        // `vault.read` reads the disk, so it sees an edit before the watcher does. The size is the vault's own record,
-        // which only the watcher's event updates.
-        predicate: async () => {
-          const file = app.vault.getFileByPath(notePath);
-          return file ? file.stat.size === new TextEncoder().encode(content).length && (await app.vault.read(file)) === content : false;
-        },
-        timeoutInMilliseconds
-      });
-
-      const file = app.vault.getFileByPath(notePath);
-      return file ? await app.vault.read(file) : '';
-    },
-    input: {
-      expectedContent,
       path,
       WAIT_TIMEOUT_IN_MILLISECONDS
     },
@@ -245,7 +245,7 @@ describe.each(BACKENDS)('External change detection on the $backend backend', ({ 
 
     await writeExternally(CREATED_NOTE_PATH, APPENDED_CONTENT);
 
-    expect(await waitForVaultContent(CREATED_NOTE_PATH, APPENDED_CONTENT)).toBe(APPENDED_CONTENT);
+    expect(await waitForAppendedContentOfCreatedNote()).toBe(APPENDED_CONTENT);
   });
 
   // A save that writes a temp file and renames it over the note gives the note a new inode. The plugin used to keep the old
@@ -257,7 +257,7 @@ describe.each(BACKENDS)('External change detection on the $backend backend', ({ 
 
     await writeExternally(TEMP_NOTE_PATH, APPENDED_CONTENT);
     await rename(getFullPath(TEMP_NOTE_PATH), getFullPath(CREATED_NOTE_PATH));
-    await waitForVaultContent(CREATED_NOTE_PATH, APPENDED_CONTENT);
+    await waitForAppendedContentOfCreatedNote();
 
     await rename(getFullPath(CREATED_NOTE_PATH), getFullPath(RENAMED_NOTE_PATH));
 

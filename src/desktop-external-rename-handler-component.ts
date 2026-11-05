@@ -233,13 +233,9 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
   private getOfflineRenameOldPath(path: string, stats: Stats): null | string {
     const oldPath = this.pathInoMap.getPath(stats.ino);
-    if (oldPath === undefined || oldPath === path) {
-      return null;
-    }
-
     // The old path still taken means a hard link, or a new file created where the renamed one used to be. Either way
     // the links to the old path still resolve, and there is nothing to report.
-    if (this.app.vault.getAbstractFileByPath(oldPath)) {
+    if (oldPath === undefined || oldPath === path || this.app.vault.getAbstractFileByPath(oldPath)) {
       return null;
     }
 
@@ -362,15 +358,11 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
   private isCachedEntryCurrent(file: TAbstractFile): boolean {
     // A path recorded before birth times were persisted is stat-ed once more, so that a later offline rename of it can be
-    // vouched for.
-    if (this.pathInoMap.getBirthtime(file.path) === undefined) {
-      return false;
-    }
-
-    // A save that swapped a new copy in for the note while Obsidian was closed gave it a new inode. Obsidian read the
-    // note's modification time and size from the disk at startup, so a stamp that still matches them rules that out
-    // without a `stat` of ours.
-    return !(file instanceof TFile) || isSameStamp(this.pathInoMap.getStamp(file.path), file.stat);
+    // vouched for. A save that swapped a new copy in for the note while Obsidian was closed gave it a new inode. Obsidian
+    // read the note's modification time and size from the disk at startup, so a stamp that still matches them rules that
+    // out without a `stat` of ours.
+    return this.pathInoMap.getBirthtime(file.path) !== undefined
+      && (!(file instanceof TFile) || isSameStamp(this.pathInoMap.getStamp(file.path), file.stat));
   }
 
   private refreshChangedFile(path: string, stats: BigIntStats | Stats): void {
@@ -477,7 +469,7 @@ function toBirthtimeMs(stats: BigIntStats | Stats): number {
 // instead.
 function toFileStamp(stats: BigIntStats | Stats): FileStamp {
   return {
-    mtime: 'mtimeNs' in stats ? Math.round(Number(stats.mtimeNs) / NANOSECONDS_PER_MILLISECOND) : Math.round(stats.mtimeMs),
+    mtime: Math.round('mtimeNs' in stats ? Number(stats.mtimeNs) / NANOSECONDS_PER_MILLISECOND : stats.mtimeMs),
     size: Number(stats.size)
   };
 }

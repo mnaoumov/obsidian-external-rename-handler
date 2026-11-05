@@ -302,8 +302,8 @@ async function flush(): Promise<void> {
   await waitForAllAsyncOperations();
 }
 
-function getWatcher(index = -1): WatcherMock {
-  const instance = vi.mocked(FSWatcher).mock.instances.at(index);
+function getWatcher(): WatcherMock {
+  const instance = vi.mocked(FSWatcher).mock.instances.at(-1);
   if (!instance) {
     throw new Error('Watcher was not created.');
   }

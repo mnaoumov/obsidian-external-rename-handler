@@ -2,6 +2,7 @@ import type { App } from 'obsidian';
 
 import { LocalDataStore } from '@mnaoumov/obsidian-lib/data-stores/local-data-store';
 import { invokeAsyncSafely } from '@mnaoumov/typescript-lib/async';
+import { DisposableBase } from '@mnaoumov/typescript-lib/disposable';
 import { printError } from '@mnaoumov/typescript-lib/error';
 import { TwoWayMap } from '@mnaoumov/typescript-lib/two-way-map';
 import { debounce } from 'obsidian';
@@ -40,7 +41,7 @@ interface PathInoMapSetParams {
 const DB_VERSION = 1;
 const PROCESS_STORE_ACTIONS_DEBOUNCE_INTERVAL_IN_MILLISECONDS = 5000;
 
-export class PathInoMap implements Disposable {
+export class PathInoMap extends DisposableBase {
   // The birth time vouches that an inode found at a new path after a restart is the same file, and not a freed inode
   // the file system handed to an unrelated new file.
   private readonly birthtimes = new Map<string, number>();
@@ -51,7 +52,7 @@ export class PathInoMap implements Disposable {
 
   private initialization: null | Promise<void> = null;
 
-  private isDisposed = false;
+  private isClosing = false;
 
   private isInitialized = false;
 
@@ -74,7 +75,7 @@ export class PathInoMap implements Disposable {
   private readonly twoWayMap = new TwoWayMap<string, number>();
 
   public clear(): void {
-    if (this.isDisposed) {
+    if (this.isClosing) {
       return;
     }
     if (!this.isInitialized) {
@@ -89,7 +90,7 @@ export class PathInoMap implements Disposable {
   }
 
   public deletePath(path: string): void {
-    if (this.isDisposed) {
+    if (this.isClosing) {
       return;
     }
     this.twoWayMap.deleteKey(path);
@@ -99,7 +100,7 @@ export class PathInoMap implements Disposable {
   }
 
   public async disposeAsync(): Promise<void> {
-    this.isDisposed = true;
+    this.isClosing = true;
     this.processStoreActionsDebounced.cancel();
     this.disposal ??= this.drainAndClose();
     await this.disposal;
@@ -131,7 +132,7 @@ export class PathInoMap implements Disposable {
   }
 
   public set(params: PathInoMapSetParams): void {
-    if (this.isDisposed) {
+    if (this.isClosing) {
       return;
     }
     const { birthtimeMs, ino, path, stamp } = params;
@@ -151,7 +152,7 @@ export class PathInoMap implements Disposable {
    * Idempotent, as `ComponentEx.registerDisposable` requires, because the owning component disposes the map it
    * Replaces on a second layout-ready and the registration disposes it again on unload.
    */
-  public [Symbol.dispose](): void {
+  protected override performDispose(): void {
     invokeAsyncSafely(() => this.disposeAsync().catch(printError));
   }
 
