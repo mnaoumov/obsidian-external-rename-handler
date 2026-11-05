@@ -157,8 +157,8 @@ function createTab(): PluginSettingsTab {
  * @returns Whether the row would be rendered.
  */
 function isBannerRowVisible(tab: PluginSettingsTab): boolean {
-  const visible = castTo<VisibleDefinition>(ensureNonNullable(tab.getSettingDefinitions()[BANNER_ROW_INDEX])).visible;
-  return visible();
+  const isVisible = castTo<VisibleDefinition>(ensureNonNullable(tab.getSettingDefinitions()[BANNER_ROW_INDEX])).visible;
+  return isVisible();
 }
 
 /**
