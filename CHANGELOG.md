@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 4.1.2
+
+This release has 1 fix and 4 documentation changes. 2 maintenance commits (tests, build, CI, refactoring, dependencies) are not listed.
+
+### Fixed
+
+- **deps:** override glob to clear GHSA-3g3m-2fjr-6pw4
+
+### Documentation
+
+- **changelog:** regroup the published release notes for readers
+- record the measured folder-mtime probe answer on FAT32 and exFAT
+- make issue attachments optional and strongly encouraged
+- clarify historical Node compatibility testing
+
 ## 4.1.1
 
 This release has 1 fix and 2 documentation changes.
