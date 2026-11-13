@@ -234,6 +234,7 @@ function createApp(): AppOriginal {
   seedOnRawTarget(newApp.vault, 'getAbstractFileByPath', vi.fn((path: string) => loadedFiles.find((file) => file.path === path) ?? null));
   triggerMock = vi.fn();
   seedOnRawTarget(newApp.vault, 'trigger', triggerMock);
+  seedOnRawTarget(newApp, 'internalPlugins', { getEnabledPluginById: vi.fn(() => null) });
   seedOnRawTarget(
     newApp.metadataCache,
     'onCleanCache',

@@ -39,6 +39,24 @@ interface RenameRecorderWindow {
   offlineRenameRecords?: RenameRecord[];
 }
 
+interface SyncStandInEntry {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Mirrors core Sync's entry, whose rename listener rewrites the path.
+  path: string;
+}
+
+interface SyncStandInFile {
+  readonly path: string;
+}
+
+interface SyncStandInWindow {
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The stand-in is installed and torn down from inside the app.
+  syncStandInLocalFiles?: Record<string, SyncStandInEntry | undefined>;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The stand-in's listener counts its calls here.
+  syncStandInRenameCount?: number;
+  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The stand-in is installed and torn down from inside the app.
+  syncStandInRestore?: () => void;
+}
+
 interface WatcherSlice {
   readonly readyEmitted: boolean;
 }
@@ -286,5 +304,75 @@ describe('Renames made while the plugin was not running', () => {
 
     const records = await waitForRecordedRename({ newPath: RENAMED_NOTE_PATH, oldPath: ORIGINAL_NOTE_PATH });
     expect(records.filter((r) => r.newPath === RENAMED_NOTE_PATH)).toHaveLength(1);
+  });
+
+  /*
+   * Regression test: core Sync's startup scan reconciles an offline rename as a delete plus a create before the plugin
+   * replays it, and Sync's `rename` listener then read the old path's missing entry, wrote `undefined` over the new path's
+   * entry and threw. The stand-in below has Sync's state after that scan and Sync's unguarded listener.
+   */
+  it('should not hand the replayed rename to a Sync that already reconciled it', async () => {
+    await writeFile(getFullPath(ORIGINAL_NOTE_PATH), 'content', 'utf-8');
+    await waitForVaultToSee(ORIGINAL_NOTE_PATH, true);
+
+    await setPluginEnabled(false);
+    await rename(getFullPath(ORIGINAL_NOTE_PATH), getFullPath(RENAMED_NOTE_PATH));
+    await waitForVaultToSee(RENAMED_NOTE_PATH, true);
+    await waitForVaultToSee(ORIGINAL_NOTE_PATH, false);
+
+    await startRecordingRenames();
+    await evalInObsidian({
+      callback({ app, renamedPath }) {
+        const syncWindow = window as SyncStandInWindow;
+        const localFiles: Record<string, SyncStandInEntry | undefined> = { [renamedPath]: { path: renamedPath } };
+        function boundOnFileRename(file: SyncStandInFile, oldPath: string): void {
+          syncWindow.syncStandInRenameCount = (syncWindow.syncStandInRenameCount ?? 0) + 1;
+          // The shape of core Sync's own listener: no guard for an old path it does not track.
+          const entry = localFiles[oldPath];
+          localFiles[file.path] = entry;
+          Reflect.deleteProperty(localFiles, oldPath);
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- Core Sync's listener assumes the entry exists and throws when it does not.
+          entry!.path = file.path;
+        }
+        const originalGetEnabledPluginById = app.internalPlugins.getEnabledPluginById.bind(app.internalPlugins);
+        const eventRef = app.vault.on('rename', boundOnFileRename);
+        syncWindow.syncStandInLocalFiles = localFiles;
+        syncWindow.syncStandInRenameCount = 0;
+        syncWindow.syncStandInRestore = (): void => {
+          app.vault.offref(eventRef);
+          app.internalPlugins.getEnabledPluginById = originalGetEnabledPluginById;
+        };
+        app.internalPlugins.getEnabledPluginById = ((id: string): unknown => id === 'sync' ? { boundOnFileRename, localFiles } : originalGetEnabledPluginById(id as 'sync')) as typeof originalGetEnabledPluginById;
+      },
+      input: { renamedPath: RENAMED_NOTE_PATH },
+      vaultPath: getTemporaryVault().path
+    });
+
+    try {
+      await setPluginEnabled(true);
+      const records = await waitForRecordedRename({ newPath: RENAMED_NOTE_PATH, oldPath: ORIGINAL_NOTE_PATH });
+      expect(records.filter((r) => r.newPath === RENAMED_NOTE_PATH)).toHaveLength(1);
+
+      const syncState = await evalInObsidian({
+        callback({ renamedPath }) {
+          const syncWindow = window as SyncStandInWindow;
+          return {
+            renameCount: syncWindow.syncStandInRenameCount,
+            renamedEntryPath: syncWindow.syncStandInLocalFiles?.[renamedPath]?.path
+          };
+        },
+        input: { renamedPath: RENAMED_NOTE_PATH },
+        vaultPath: getTemporaryVault().path
+      });
+      expect(syncState).toEqual({ renameCount: 0, renamedEntryPath: RENAMED_NOTE_PATH });
+    } finally {
+      await evalInObsidian({
+        callback() {
+          (window as SyncStandInWindow).syncStandInRestore?.();
+        },
+        input: {},
+        vaultPath: getTemporaryVault().path
+      });
+    }
   });
 });
