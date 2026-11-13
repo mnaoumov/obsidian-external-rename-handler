@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 4.1.3
+
+This release has 1 fix. 1 maintenance commit (tests, build, CI, refactoring, dependencies) is not listed.
+
+### Fixed
+
+- keep core Sync's record when replaying an offline rename
+
 ## 4.1.2
 
 This release has 1 fix and 4 documentation changes. 2 maintenance commits (tests, build, CI, refactoring, dependencies) are not listed.
