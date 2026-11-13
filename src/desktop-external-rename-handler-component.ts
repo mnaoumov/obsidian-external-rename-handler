@@ -43,6 +43,7 @@ import type { PluginSettingsComponent } from './plugin-settings-component.ts';
 import { watch } from './desktop-chokidar-watch.ts';
 import { doesFolderMtimeTrackNewEntries } from './desktop-folder-mtime-probe.ts';
 import { isDotFile } from './dot-file.ts';
+import { triggerOfflineRename } from './offline-rename-trigger.ts';
 import { FileSystemAdapterOnFileChangePatchComponent } from './patches/file-system-adapter-on-file-change-patch-component.ts';
 import { PathInoMap } from './path-ino-map.ts';
 
@@ -443,7 +444,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
       if (file.path !== newPath || this.app.vault.getAbstractFileByPath(oldPath)) {
         continue;
       }
-      this.app.vault.trigger('rename', file, oldPath);
+      triggerOfflineRename(this.app, file, oldPath);
       reportedCount++;
     }
 
