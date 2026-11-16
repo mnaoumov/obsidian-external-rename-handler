@@ -1,4 +1,8 @@
-import type { EventsEntry } from '@obsidian-typings/obsidian-public-latest';
+import type {
+  EventsEntry,
+  SyncLocalFile,
+  SyncPluginInstance
+} from '@obsidian-typings/obsidian-public-latest';
 import type {
   App,
   TAbstractFile
@@ -20,10 +24,7 @@ interface FakeApp {
   readonly vault: FakeVault;
 }
 
-interface FakeSync {
-  readonly boundOnFileRename?: Listener;
-  readonly localFiles?: Readonly<Record<string, unknown>>;
-}
+type FakeSync = Pick<SyncPluginInstance, 'boundOnFileRename' | 'localFiles'>;
 
 interface FakeVault {
   readonly _: Readonly<Record<string, EventsEntry[]>>;
@@ -35,6 +36,7 @@ type Listener = (...listenerArguments: unknown[]) => unknown;
 
 const FILE = castTo<TAbstractFile>({ path: 'new.md' });
 const OLD_PATH = 'old.md';
+const LOCAL_FILE = castTo<SyncLocalFile>({});
 
 function createApp(sync: FakeSync | null, listeners: null | readonly Listener[]): FakeApp {
   const vault: FakeVault = {
@@ -68,19 +70,7 @@ describe('triggerOfflineRename', () => {
 
   it('should trigger the vault event when Sync still tracks the old path', () => {
     const syncListener = vi.fn();
-    const { app, vault } = createApp({ boundOnFileRename: syncListener, localFiles: { [OLD_PATH]: {} } }, [syncListener]);
-    triggerOfflineRename(app, FILE, OLD_PATH);
-    expect(vault.trigger).toHaveBeenCalledWith('rename', FILE, OLD_PATH);
-  });
-
-  it('should trigger the vault event when Sync has no rename listener', () => {
-    const { app, vault } = createApp({ localFiles: {} }, []);
-    triggerOfflineRename(app, FILE, OLD_PATH);
-    expect(vault.trigger).toHaveBeenCalledWith('rename', FILE, OLD_PATH);
-  });
-
-  it('should trigger the vault event when Sync has no local file map', () => {
-    const { app, vault } = createApp({ boundOnFileRename: vi.fn() }, []);
+    const { app, vault } = createApp({ boundOnFileRename: syncListener, localFiles: { [OLD_PATH]: LOCAL_FILE } }, [syncListener]);
     triggerOfflineRename(app, FILE, OLD_PATH);
     expect(vault.trigger).toHaveBeenCalledWith('rename', FILE, OLD_PATH);
   });
@@ -96,7 +86,7 @@ describe('triggerOfflineRename', () => {
     const last = vi.fn(() => {
       calls.push('last');
     });
-    const { app, vault } = createApp({ boundOnFileRename: syncListener, localFiles: { [FILE.path]: {} } }, [first, syncListener, last]);
+    const { app, vault } = createApp({ boundOnFileRename: syncListener, localFiles: { [FILE.path]: LOCAL_FILE } }, [first, syncListener, last]);
 
     triggerOfflineRename(app, FILE, OLD_PATH);
 

@@ -1,3 +1,9 @@
+import type {
+  SyncLocalFile,
+  SyncPluginInstance
+} from '@obsidian-typings/obsidian-public-latest';
+import type { TAbstractFile } from 'obsidian';
+
 import {
   rename,
   rm,
@@ -39,18 +45,9 @@ interface RenameRecorderWindow {
   offlineRenameRecords?: RenameRecord[];
 }
 
-interface SyncStandInEntry {
-  // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- Mirrors core Sync's entry, whose rename listener rewrites the path.
-  path: string;
-}
-
-interface SyncStandInFile {
-  readonly path: string;
-}
-
 interface SyncStandInWindow {
   // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The stand-in is installed and torn down from inside the app.
-  syncStandInLocalFiles?: Record<string, SyncStandInEntry | undefined>;
+  syncStandInLocalFiles?: SyncPluginInstance['localFiles'];
   // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The stand-in's listener counts its calls here.
   syncStandInRenameCount?: number;
   // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The stand-in is installed and torn down from inside the app.
@@ -324,16 +321,17 @@ describe('Renames made while the plugin was not running', () => {
     await evalInObsidian({
       callback({ app, renamedPath }) {
         const syncWindow = window as SyncStandInWindow;
-        const localFiles: Record<string, SyncStandInEntry | undefined> = { [renamedPath]: { path: renamedPath } };
-        function boundOnFileRename(file: SyncStandInFile, oldPath: string): void {
+        const localFiles: SyncPluginInstance['localFiles'] = { [renamedPath]: { path: renamedPath } as SyncLocalFile };
+        function boundOnFileRename(file: TAbstractFile, oldPath: string): void {
           syncWindow.syncStandInRenameCount = (syncWindow.syncStandInRenameCount ?? 0) + 1;
           // The shape of core Sync's own listener: no guard for an old path it does not track.
-          const entry = localFiles[oldPath];
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- Core Sync's listener assumes the entry exists and throws when it does not.
+          const entry = localFiles[oldPath]!;
           localFiles[file.path] = entry;
           Reflect.deleteProperty(localFiles, oldPath);
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- Core Sync's listener assumes the entry exists and throws when it does not.
-          entry!.path = file.path;
+          entry.path = file.path;
         }
+        const syncStandIn: Pick<SyncPluginInstance, 'boundOnFileRename' | 'localFiles'> = { boundOnFileRename, localFiles };
         const originalGetEnabledPluginById = app.internalPlugins.getEnabledPluginById.bind(app.internalPlugins);
         const eventRef = app.vault.on('rename', boundOnFileRename);
         syncWindow.syncStandInLocalFiles = localFiles;
@@ -342,7 +340,7 @@ describe('Renames made while the plugin was not running', () => {
           app.vault.offref(eventRef);
           app.internalPlugins.getEnabledPluginById = originalGetEnabledPluginById;
         };
-        app.internalPlugins.getEnabledPluginById = ((id: string): unknown => id === 'sync' ? { boundOnFileRename, localFiles } : originalGetEnabledPluginById(id as 'sync')) as typeof originalGetEnabledPluginById;
+        app.internalPlugins.getEnabledPluginById = ((id: string): unknown => id === 'sync' ? syncStandIn : originalGetEnabledPluginById(id as 'sync')) as typeof originalGetEnabledPluginById;
       },
       input: { renamedPath: RENAMED_NOTE_PATH },
       vaultPath: getTemporaryVault().path

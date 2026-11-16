@@ -1,3 +1,4 @@
+import type { SyncPluginInstance } from '@obsidian-typings/obsidian-public-latest';
 import type {
   App,
   EventRef,
@@ -5,12 +6,6 @@ import type {
 } from 'obsidian';
 
 import { castTo } from '@mnaoumov/typescript-lib/object-utils';
-
-// The two members of the core Sync plugin's instance the replay needs. `obsidian-typings` declares neither.
-interface SyncRenameState {
-  readonly boundOnFileRename?: unknown;
-  readonly localFiles?: Readonly<Record<string, unknown>>;
-}
 
 /**
  * Fires the vault `rename` event for a rename made while Obsidian was closed.
@@ -28,25 +23,22 @@ interface SyncRenameState {
  * @param oldPath - The path the file had before the rename.
  */
 export function triggerOfflineRename(app: App, file: TAbstractFile, oldPath: string): void {
-  const skippedListener = getStaleSyncRenameListener(app, oldPath);
-  if (!skippedListener) {
+  const syncInstance = getSyncUnawareOfOldPath(app, oldPath);
+  if (!syncInstance) {
     app.vault.trigger('rename', file, oldPath);
     return;
   }
 
   const entries = [...(app.vault._['rename'] ?? [])];
   for (const entry of entries) {
-    if (entry.fn === skippedListener) {
+    if (entry.fn === syncInstance.boundOnFileRename) {
       continue;
     }
     app.vault.tryTrigger(castTo<EventRef>(entry), [file, oldPath]);
   }
 }
 
-function getStaleSyncRenameListener(app: App, oldPath: string): unknown {
-  const syncInstance = castTo<null | SyncRenameState>(app.internalPlugins.getEnabledPluginById('sync'));
-  const localFiles = syncInstance?.localFiles;
-  const listener = syncInstance?.boundOnFileRename;
-  const isOldPathUnknownToSync = localFiles !== undefined && typeof listener === 'function' && !Object.hasOwn(localFiles, oldPath);
-  return isOldPathUnknownToSync ? listener : null;
+function getSyncUnawareOfOldPath(app: App, oldPath: string): null | SyncPluginInstance {
+  const syncInstance = app.internalPlugins.getEnabledPluginById('sync');
+  return syncInstance && !Object.hasOwn(syncInstance.localFiles, oldPath) ? syncInstance : null;
 }
