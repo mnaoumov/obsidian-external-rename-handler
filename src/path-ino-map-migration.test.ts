@@ -164,7 +164,7 @@ it('drains accepted mutations and closes when unloaded during open', async () =>
   const initializing = map.init(app);
   map.set({ birthtimeMs: 10, ino: 42, path: 'alpha.md' });
   const close = vi.spyOn(LocalDataStore.prototype, 'close');
-  map[Symbol.dispose]();
+  map.dispose();
   await initializing;
   await map.disposeAsync();
   expect(close).toHaveBeenCalledOnce();

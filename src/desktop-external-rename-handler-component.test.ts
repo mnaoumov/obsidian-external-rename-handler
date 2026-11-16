@@ -182,6 +182,7 @@ vi.mock('./path-ino-map.ts', () => ({
   PathInoMap: class {
     public clear = hoisted.pathInoMapStub.clear;
     public deletePath = hoisted.pathInoMapStub.deletePath;
+    public dispose = hoisted.pathInoMapStub[Symbol.dispose];
     public getBirthtime = hoisted.pathInoMapStub.getBirthtime;
     public getIno = hoisted.pathInoMapStub.getIno;
     public getPath = hoisted.pathInoMapStub.getPath;
@@ -191,7 +192,7 @@ vi.mock('./path-ino-map.ts', () => ({
     public set = hoisted.pathInoMapStub.set;
     public [Symbol.dispose] = hoisted.pathInoMapStub[Symbol.dispose];
     public async disposeAsync(): Promise<void> {
-      this[Symbol.dispose]();
+      this.dispose();
       await noopAsync();
     }
   }

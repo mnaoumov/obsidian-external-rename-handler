@@ -265,7 +265,7 @@ describe('PathInoMap', () => {
       expect(map.getIno('/legacy.md')).toBe(42);
       expect(map.getBirthtime('/legacy.md')).toBeUndefined();
       expect(map.getStamp('/legacy.md')).toBeUndefined();
-      map[Symbol.dispose]();
+      map.dispose();
     });
   });
 
@@ -280,14 +280,14 @@ describe('PathInoMap', () => {
       vi.advanceTimersByTime(DEBOUNCE_MS);
 
       await map.init(app);
-      map[Symbol.dispose]();
+      map.dispose();
 
       vi.useRealTimers();
 
       const reopened = new PathInoMap();
       await reopened.init(app);
       expect(reopened.getIno('/queued-before-init.md')).toBe(1);
-      reopened[Symbol.dispose]();
+      reopened.dispose();
     });
 
     it('should flush the pending actions instead of letting the debounce fire after teardown', async () => {
@@ -297,7 +297,7 @@ describe('PathInoMap', () => {
       const map = new PathInoMap();
       await map.init(app);
       map.set({ birthtimeMs: 0, ino: 7, path: '/pending.md' });
-      map[Symbol.dispose]();
+      map.dispose();
 
       // The debouncer is cancelled, so nothing fires into the closed connection.
       expect(() => {
@@ -309,7 +309,7 @@ describe('PathInoMap', () => {
       const reopened = new PathInoMap();
       await reopened.init(app);
       expect(reopened.getIno('/pending.md')).toBe(7);
-      reopened[Symbol.dispose]();
+      reopened.dispose();
     });
 
     it('should be idempotent and inert once disposed', async () => {
@@ -318,8 +318,8 @@ describe('PathInoMap', () => {
 
       const map = new PathInoMap();
       await map.init(app);
-      map[Symbol.dispose]();
-      map[Symbol.dispose]();
+      map.dispose();
+      map.dispose();
 
       // A store action arriving after teardown is dropped rather than queued against a closed connection.
       map.set({ birthtimeMs: 0, ino: 9, path: '/after-dispose.md' });
@@ -332,7 +332,7 @@ describe('PathInoMap', () => {
       const reopened = new PathInoMap();
       await reopened.init(app);
       expect(reopened.getIno('/after-dispose.md')).toBeUndefined();
-      reopened[Symbol.dispose]();
+      reopened.dispose();
     });
   });
 
@@ -349,7 +349,7 @@ describe('PathInoMap', () => {
         const mainWindowOpenSpy = vi.spyOn(window.indexedDB, 'open');
         const map = new PathInoMap();
         await map.init(createUniqueApp());
-        map[Symbol.dispose]();
+        map.dispose();
 
         expect(mainWindowOpenSpy).toHaveBeenCalledTimes(2);
         expect(popoutOpenSpy).not.toHaveBeenCalled();
