@@ -236,7 +236,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     const oldPath = this.pathInoMap.getPath(stats.ino);
     // The old path still taken means a hard link, or a new file created where the renamed one used to be. Either way
     // the links to the old path still resolve, and there is nothing to report.
-    if (oldPath === undefined || oldPath === path || this.app.vault.getAbstractFileByPath(oldPath)) {
+    if (oldPath === null || oldPath === path || this.app.vault.getAbstractFileByPath(oldPath)) {
       return null;
     }
 
@@ -306,15 +306,15 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         }
 
         const birthtimeMs = toBirthtimeMs(stats);
-        const oldBirthtimeMs = oldPath === undefined ? undefined : this.pathInoMap.getBirthtime(oldPath);
+        const oldBirthtimeMs = oldPath === null ? null : this.pathInoMap.getBirthtime(oldPath);
         // A different birth time means the file system handed the inode of a file deleted moments ago to an unrelated new
         // one, as ext4 readily does. That is a delete plus a create, and the delete is reported now, because the map no
         // longer leads the pending deletion back to the old path. Reuse within the same millisecond still passes as a
         // rename.
-        const isReusedIno = oldBirthtimeMs !== undefined && oldBirthtimeMs !== birthtimeMs;
+        const isReusedIno = oldBirthtimeMs !== null && oldBirthtimeMs !== birthtimeMs;
         this.pathInoMap.set({ birthtimeMs, ino, path, stamp: $event === 'add' ? toFileStamp(stats) : undefined });
 
-        if (oldPath !== undefined) {
+        if (oldPath !== null) {
           this.pathInoMap.deletePath(oldPath);
           if (isReusedIno) {
             this.originalOnFileChange(oldPath);
@@ -337,7 +337,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
       case 'unlink':
       case 'unlinkDir': {
         const ino = this.pathInoMap.getIno(path);
-        if (ino === undefined) {
+        if (ino === null) {
           return;
         }
 
@@ -362,7 +362,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     // vouched for. A save that swapped a new copy in for the note while Obsidian was closed gave it a new inode. Obsidian
     // read the note's modification time and size from the disk at startup, so a stamp that still matches them rules that
     // out without a `stat` of ours.
-    return this.pathInoMap.getBirthtime(file.path) !== undefined
+    return this.pathInoMap.getBirthtime(file.path) !== null
       && (!(file instanceof TFile) || isSameStamp(this.pathInoMap.getStamp(file.path), file.stat));
   }
 
@@ -456,7 +456,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
   }
 }
 
-function isSameStamp(stamp: FileStamp | undefined, other: FileStamp): boolean {
+function isSameStamp(stamp: FileStamp | null, other: FileStamp): boolean {
   return stamp?.mtime === other.mtime && stamp.size === other.size;
 }
 

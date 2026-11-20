@@ -106,15 +106,15 @@ export class PathInoMap extends DisposableBase {
     await this.disposal;
   }
 
-  public getBirthtime(path: string): number | undefined {
-    return this.birthtimes.get(path);
+  public getBirthtime(path: string): null | number {
+    return this.birthtimes.get(path) ?? null;
   }
 
-  public getIno(path: string): number | undefined {
+  public getIno(path: string): null | number {
     return this.twoWayMap.getValue(path);
   }
 
-  public getPath(ino: number): string | undefined {
+  public getPath(ino: number): null | string {
     return this.twoWayMap.getKey(ino);
   }
 
@@ -122,8 +122,8 @@ export class PathInoMap extends DisposableBase {
     return [...this.twoWayMap.keys()];
   }
 
-  public getStamp(path: string): FileStamp | undefined {
-    return this.stamps.get(path);
+  public getStamp(path: string): FileStamp | null {
+    return this.stamps.get(path) ?? null;
   }
 
   public async init(app: App): Promise<void> {
@@ -139,7 +139,7 @@ export class PathInoMap extends DisposableBase {
     const oldPath = this.getPath(ino);
     const entry: DatabaseEntry = { birthtimeMs, ino, path, ...stamp && { mtime: stamp.mtime, size: stamp.size } };
     this.loadEntry(entry);
-    if (oldPath !== undefined && oldPath !== path) {
+    if (oldPath !== null && oldPath !== path) {
       this.addStoreAction([PATH_PREFIX + oldPath, null]);
     }
     this.addStoreAction([PATH_PREFIX + path, entry]);
@@ -249,7 +249,7 @@ export class PathInoMap extends DisposableBase {
           this.stamps.delete(path);
         } else {
           const oldPath = this.getPath(entry.ino);
-          if (oldPath !== undefined && oldPath !== entry.path) {
+          if (oldPath !== null && oldPath !== entry.path) {
             this.pendingStoreActions.push([PATH_PREFIX + oldPath, null]);
           }
           this.loadEntry(entry);
@@ -266,7 +266,7 @@ export class PathInoMap extends DisposableBase {
 
   private loadEntry(entry: DatabaseEntry): void {
     const oldPath = this.getPath(entry.ino);
-    if (oldPath !== undefined) {
+    if (oldPath !== null) {
       this.birthtimes.delete(oldPath);
       this.stamps.delete(oldPath);
     }

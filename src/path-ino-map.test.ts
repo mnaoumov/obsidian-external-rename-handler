@@ -43,14 +43,14 @@ describe('PathInoMap', () => {
   }
 
   describe('before init', () => {
-    it('should return undefined for getIno', () => {
+    it('should return null for getIno', () => {
       const map = new PathInoMap();
-      expect(map.getIno('/test.md')).toBeUndefined();
+      expect(map.getIno('/test.md')).toBeNull();
     });
 
     it('should return undefined for getPath', () => {
       const map = new PathInoMap();
-      expect(map.getPath(123)).toBeUndefined();
+      expect(map.getPath(123)).toBeNull();
     });
 
     it('should return empty array for getPaths', () => {
@@ -92,8 +92,8 @@ describe('PathInoMap', () => {
     it('should delete a path', () => {
       pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/test.md' });
       pathInoMap.deletePath('/test.md');
-      expect(pathInoMap.getIno('/test.md')).toBeUndefined();
-      expect(pathInoMap.getPath(100)).toBeUndefined();
+      expect(pathInoMap.getIno('/test.md')).toBeNull();
+      expect(pathInoMap.getPath(100)).toBeNull();
     });
 
     it('should clear all entries', () => {
@@ -107,7 +107,7 @@ describe('PathInoMap', () => {
       pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/old.md' });
       pathInoMap.set({ birthtimeMs: 0, ino: 100, path: '/new.md' });
       expect(pathInoMap.getPath(100)).toBe('/new.md');
-      expect(pathInoMap.getIno('/old.md')).toBeUndefined();
+      expect(pathInoMap.getIno('/old.md')).toBeNull();
     });
 
     it('should handle set when oldPath equals path', () => {
@@ -124,40 +124,40 @@ describe('PathInoMap', () => {
     it('should move the birth time with a rename', () => {
       pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/old.md' });
       pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/new.md' });
-      expect(pathInoMap.getBirthtime('/old.md')).toBeUndefined();
+      expect(pathInoMap.getBirthtime('/old.md')).toBeNull();
       expect(pathInoMap.getBirthtime('/new.md')).toBe(1234);
     });
 
     it('should forget the birth time of a deleted path', () => {
       pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/test.md' });
       pathInoMap.deletePath('/test.md');
-      expect(pathInoMap.getBirthtime('/test.md')).toBeUndefined();
+      expect(pathInoMap.getBirthtime('/test.md')).toBeNull();
     });
 
     it('should forget every birth time on clear', () => {
       pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/test.md' });
       pathInoMap.clear();
-      expect(pathInoMap.getBirthtime('/test.md')).toBeUndefined();
+      expect(pathInoMap.getBirthtime('/test.md')).toBeNull();
     });
 
     it('should keep the stamp of a file, and move it with a rename', () => {
       pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/old.md', stamp: { mtime: 5000, size: 42 } });
       expect(pathInoMap.getStamp('/old.md')).toEqual({ mtime: 5000, size: 42 });
       pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/new.md', stamp: { mtime: 5000, size: 42 } });
-      expect(pathInoMap.getStamp('/old.md')).toBeUndefined();
+      expect(pathInoMap.getStamp('/old.md')).toBeNull();
       expect(pathInoMap.getStamp('/new.md')).toEqual({ mtime: 5000, size: 42 });
     });
 
     it('should drop the stamp of a path set without one, deleted or cleared', () => {
       pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/a', stamp: { mtime: 5000, size: 42 } });
       pathInoMap.set({ birthtimeMs: 1234, ino: 100, path: '/a' });
-      expect(pathInoMap.getStamp('/a')).toBeUndefined();
+      expect(pathInoMap.getStamp('/a')).toBeNull();
       pathInoMap.set({ birthtimeMs: 1234, ino: 101, path: '/b.md', stamp: { mtime: 5000, size: 42 } });
       pathInoMap.deletePath('/b.md');
-      expect(pathInoMap.getStamp('/b.md')).toBeUndefined();
+      expect(pathInoMap.getStamp('/b.md')).toBeNull();
       pathInoMap.set({ birthtimeMs: 1234, ino: 102, path: '/c.md', stamp: { mtime: 5000, size: 42 } });
       pathInoMap.clear();
-      expect(pathInoMap.getStamp('/c.md')).toBeUndefined();
+      expect(pathInoMap.getStamp('/c.md')).toBeNull();
     });
 
     it('should flush store actions on debounce', () => {
@@ -237,7 +237,7 @@ describe('PathInoMap', () => {
       const map2 = new PathInoMap();
       await map2.init(app);
       expect(map2.getStamp('/existing.md')).toEqual({ mtime: 5000, size: 42 });
-      expect(map2.getStamp('/folder')).toBeUndefined();
+      expect(map2.getStamp('/folder')).toBeNull();
     });
 
     // An entry written before 4.1.0 carries no birth time, and must not read as one recorded as 0.
@@ -263,8 +263,8 @@ describe('PathInoMap', () => {
       const map = new PathInoMap();
       await map.init(app);
       expect(map.getIno('/legacy.md')).toBe(42);
-      expect(map.getBirthtime('/legacy.md')).toBeUndefined();
-      expect(map.getStamp('/legacy.md')).toBeUndefined();
+      expect(map.getBirthtime('/legacy.md')).toBeNull();
+      expect(map.getStamp('/legacy.md')).toBeNull();
       map.dispose();
     });
   });
@@ -331,7 +331,7 @@ describe('PathInoMap', () => {
 
       const reopened = new PathInoMap();
       await reopened.init(app);
-      expect(reopened.getIno('/after-dispose.md')).toBeUndefined();
+      expect(reopened.getIno('/after-dispose.md')).toBeNull();
       reopened.dispose();
     });
   });

@@ -366,7 +366,8 @@ describe('Renames made while the plugin was not running', () => {
     } finally {
       await evalInObsidian({
         callback() {
-          (window as SyncStandInWindow).syncStandInRestore?.();
+          const syncWindow = window as SyncStandInWindow;
+          syncWindow.syncStandInRestore?.();
         },
         input: {},
         vaultPath: getTemporaryVault().path

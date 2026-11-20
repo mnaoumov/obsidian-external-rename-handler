@@ -32,8 +32,8 @@ it('imports legacy observations into device-local records without touching the v
   const map = new PathInoMap();
   await map.init(app);
   expect(map.getIno('alpha.md')).toBe(42);
-  expect(map.getBirthtime('alpha.md')).toBeUndefined();
-  expect(map.getStamp('alpha.md')).toBeUndefined();
+  expect(map.getBirthtime('alpha.md')).toBeNull();
+  expect(map.getStamp('alpha.md')).toBeNull();
   const local = await LocalDataStore.open({ factory: window.indexedDB, pluginId: 'external-rename-handler', storeId: 'path-ino-v1', vaultId: app.appId });
   expect(await local.get('path:alpha.md')).toEqual({ ino: 42, path: 'alpha.md' });
   expect(await local.get('legacy-import-v1')).toBe(true);
@@ -193,7 +193,7 @@ it('ignores malformed observations so they cannot fabricate renames', async () =
   const map = new PathInoMap();
   await map.init(app);
   expect(map.getPaths()).toEqual(['golf.md']);
-  expect(map.getStamp('golf.md')).toBeUndefined();
+  expect(map.getStamp('golf.md')).toBeNull();
   map.clear();
   await map.disposeAsync();
 });
