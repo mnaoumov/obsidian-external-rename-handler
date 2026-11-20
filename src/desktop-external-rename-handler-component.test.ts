@@ -70,11 +70,11 @@ interface MutablePathFile {
 interface PathInoMapStub {
   readonly clear: Mock<() => void>;
   readonly deletePath: Mock<(path: string) => void>;
-  readonly getBirthtime: Mock<(path: string) => number | undefined>;
-  readonly getIno: Mock<(path: string) => number | undefined>;
-  readonly getPath: Mock<(ino: number) => string | undefined>;
+  readonly getBirthtime: Mock<(path: string) => null | number>;
+  readonly getIno: Mock<(path: string) => null | number>;
+  readonly getPath: Mock<(ino: number) => null | string>;
   readonly getPaths: Mock<() => string[]>;
-  readonly getStamp: Mock<(path: string) => Stamp | undefined>;
+  readonly getStamp: Mock<(path: string) => null | Stamp>;
   readonly init: Mock<(app: AppOriginal) => Promise<void>>;
   readonly [Symbol.dispose]: Mock<() => void>;
   readonly set: Mock<(params: SetParams) => void>;
@@ -127,11 +127,11 @@ const hoisted = vi.hoisted(() => {
   const pathInoMapStub: PathInoMapStub = {
     clear: vi.fn(),
     deletePath: vi.fn(),
-    getBirthtime: vi.fn((): number | undefined => undefined),
-    getIno: vi.fn((): number | undefined => undefined),
-    getPath: vi.fn((): string | undefined => undefined),
+    getBirthtime: vi.fn((): null | number => null),
+    getIno: vi.fn((): null | number => null),
+    getPath: vi.fn((): null | string => null),
     getPaths: vi.fn((): string[] => []),
-    getStamp: vi.fn((): Stamp | undefined => undefined),
+    getStamp: vi.fn((): null | Stamp => null),
     init: vi.fn((): Promise<void> => noopAsync()),
     set: vi.fn(),
     [Symbol.dispose]: vi.fn()
@@ -269,6 +269,7 @@ function createComponent(): ExternalRenameHandlerComponent {
     showNotice: showNoticeMock,
     showNoticeAfterDelay: vi.fn(() =>
       strictProxy<PluginNoticeComponentDelayedNotice>({
+        dispose: vi.fn(),
         setContent: vi.fn(),
         [Symbol.dispose]: vi.fn()
       })
@@ -361,13 +362,13 @@ async function triggerLayoutReady(): Promise<void> {
 describe('ExternalRenameHandlerComponent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    hoisted.pathInoMapStub.getBirthtime.mockReturnValue(undefined);
+    hoisted.pathInoMapStub.getBirthtime.mockReturnValue(null);
     hoisted.capturedLoadSettingsHandlers.length = 0;
     hoisted.capturedSaveSettingsHandlers.length = 0;
-    hoisted.pathInoMapStub.getIno.mockReturnValue(undefined);
-    hoisted.pathInoMapStub.getPath.mockReturnValue(undefined);
+    hoisted.pathInoMapStub.getIno.mockReturnValue(null);
+    hoisted.pathInoMapStub.getPath.mockReturnValue(null);
     hoisted.pathInoMapStub.getPaths.mockReturnValue([]);
-    hoisted.pathInoMapStub.getStamp.mockReturnValue(undefined);
+    hoisted.pathInoMapStub.getStamp.mockReturnValue(null);
     hoisted.pathInoMapStub.init.mockResolvedValue(undefined);
     hoisted.stat.mockResolvedValue({ birthtimeMs: 0, ino: ROOT_INO });
     hoisted.doesFolderMtimeTrackNewEntries.mockResolvedValue(true);
@@ -518,8 +519,8 @@ describe('ExternalRenameHandlerComponent', () => {
 
     function seedRename(oldPath: string, birthtimeMs: null | number = BIRTHTIME_MS): void {
       hoisted.pathInoMapStub.getPaths.mockReturnValue([oldPath]);
-      hoisted.pathInoMapStub.getPath.mockImplementation((ino) => ino === RENAMED_INO ? oldPath : undefined);
-      hoisted.pathInoMapStub.getBirthtime.mockImplementation((path) => path === oldPath ? birthtimeMs ?? undefined : undefined);
+      hoisted.pathInoMapStub.getPath.mockImplementation((ino) => ino === RENAMED_INO ? oldPath : null);
+      hoisted.pathInoMapStub.getBirthtime.mockImplementation((path) => path === oldPath ? birthtimeMs ?? null : null);
       // The plain `stat` carries a fraction of a millisecond, which the map does not keep.
       hoisted.stat.mockResolvedValue({ birthtimeMs: BIRTHTIME_MS + 0.75, ino: RENAMED_INO });
     }
@@ -540,7 +541,7 @@ describe('ExternalRenameHandlerComponent', () => {
       loadedFiles = [folder, file];
       const oldPaths = new Map([[1, 'old-folder'], [2, 'old-folder/note.md']]);
       hoisted.pathInoMapStub.getPaths.mockReturnValue([...oldPaths.values()]);
-      hoisted.pathInoMapStub.getPath.mockImplementation((ino) => oldPaths.get(ino));
+      hoisted.pathInoMapStub.getPath.mockImplementation((ino) => oldPaths.get(ino) ?? null);
       hoisted.pathInoMapStub.getBirthtime.mockReturnValue(BIRTHTIME_MS);
       hoisted.stat.mockImplementation((path: string) => Promise.resolve({ birthtimeMs: BIRTHTIME_MS, ino: path.endsWith('note.md') ? 2 : (path.endsWith('new-folder') ? 1 : ROOT_INO) }));
       await createReadyComponent();
@@ -890,7 +891,7 @@ describe('ExternalRenameHandlerComponent', () => {
 
     it('should skip unlink when the ino is unknown', async () => {
       await setup();
-      hoisted.pathInoMapStub.getIno.mockReturnValue(undefined);
+      hoisted.pathInoMapStub.getIno.mockReturnValue(null);
       getWatcherHandler('all')('unlink', 'unknown.md');
       expect(hoisted.pathInoMapStub.deletePath).not.toHaveBeenCalled();
     });
