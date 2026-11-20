@@ -8,9 +8,9 @@ This plugin recognizes those external renames for what they are and reports them
 
 > [!WARNING]
 >
-> A rename is recognized only where the file keeps its identity on disk (its inode), and not every file system keeps it: see [05 File systems](<./demo-vault/05 File systems.md>).
+> A rename is recognized only where the file keeps its identity on disk (its inode), and not every file system keeps it: see [05 File systems](https://github.com/mnaoumov/obsidian-external-rename-handler/blob/HEAD/demo-vault/05%20File%20systems.md).
 >
-> Only files and folders inside the vault that Obsidian tracks are handled, and never those whose names start with `.` (dot). See [03 How it works](<./demo-vault/03 How it works.md#limitations-be-honest-with-yourself>) for every limit.
+> Only files and folders inside the vault that Obsidian tracks are handled, and never those whose names start with `.` (dot). See [03 How it works](https://github.com/mnaoumov/obsidian-external-rename-handler/blob/HEAD/demo-vault/03%20How%20it%20works.md#limitations-be-honest-with-yourself) for every limit.
 
 <!-- markdownlint-disable MD033 -->
 
