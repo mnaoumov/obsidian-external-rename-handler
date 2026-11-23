@@ -413,10 +413,10 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
 
     this.watcher = watch('.', {
       // `chokidar` 6 rejects a polling interval that is not positive even on a native backend, so it goes to polling alone.
-      ...isPolling && {
+      ...(isPolling && {
         pollingBinaryInterval: pollingIntervalInMilliseconds,
         pollingInterval: pollingIntervalInMilliseconds
-      },
+      }),
       // Rename detection reads the inode off every `add`, and `chokidar` 6 passes `stats` only when its backend has them.
       alwaysStat: true,
       // `chokidar` 6 defaults `atomic` to `false` under polling, so it is set explicitly to keep both backends alike.

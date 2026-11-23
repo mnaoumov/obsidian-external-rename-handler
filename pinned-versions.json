@@ -16,6 +16,13 @@
     "and it never ships. Add a braces override once a patched release exists."
   ],
   "pins": {
+    "@microsoft/eslint-plugin-sdl": {
+      "section": "overrides",
+      "why": "A scoped override, `eslint-plugin-n` ^17.24.0 under @microsoft/eslint-plugin-sdl, clears GHSA-g3hv-75wg-m249 (minimatch denial of service through glob part amplification, 7.0.0 - 11.0.0) on the path eslint-plugin-obsidianmd -> @microsoft/eslint-plugin-sdl -> eslint-plugin-n 17.10.3 -> a minimatch inside that range. eslint-plugin-n 17.24 depends on minimatch 3.x, outside the advisory range, and stays within the 17.x major sdl declares. It is scoped so the direct eslint-plugin-n 18 the toolkit brings is untouched. The P21 minimatch 11 recipe, as in obsidian-tag-notes.",
+      "check": "node -e \"const fs=require('node:fs');process.stdout.write(JSON.parse(fs.readFileSync('node_modules/@microsoft/eslint-plugin-sdl/package.json','utf8')).dependencies['eslint-plugin-n'])\"",
+      "expect": "17.10.3",
+      "manualCheck": "When @microsoft/eslint-plugin-sdl declares an eslint-plugin-n whose minimatch is outside 7.0.0 - 11.0.0, drop the override and this entry after a clean npm audit."
+    },
     "@puppeteer/browsers": {
       "section": "overrides",
       "why": "Clears GHSA-jmr9-qjv8-65gv (extract-zip unvalidated symlink path traversal, 8 high advisories) and nothing else. extract-zip is vulnerable at every published version, so there is no patched version to override it to, and the direct dependency cannot be bumped either: obsidian-integration-testing is already latest and pins webdriverio, and even the newest webdriverio still reaches extract-zip through @wdio/utils -> @puppeteer/browsers ^2.x. @puppeteer/browsers@3 replaced extract-zip with modern-tar, so forcing 3.x on @wdio/utils - the only consumer left on 2.x - removes the subtree entirely. It also dedupes: puppeteer-core already brings 3.2.0 into this tree, so the override collapses two copies into one rather than adding anything. The major bump is safe because @wdio/utils imports only install, canDownload, resolveBuildId, detectBrowserPlatform, Browser, ChromeReleaseChannel, computeExecutablePath and the InstallOptions type, all still exported by 3.x with compatible signatures, and both packages are ESM-only. NEVER take the `npm audit fix --force` remedy here: it downgrades obsidian-integration-testing from 10.x to 1.1.2.",
@@ -43,13 +50,6 @@
       "check": "node -e \"const fs=require('node:fs');process.stdout.write(JSON.parse(fs.readFileSync('node_modules/micromark-extension-math/package.json','utf8')).dependencies.katex)\"",
       "expect": "^0.16.0",
       "manualCheck": "The check reads the range micromark-extension-math declares. When it admits 0.18.2 or later the override and this entry can both go."
-    },
-    "moment": {
-      "section": "overrides",
-      "why": "Clears GHSA-4p3w-j4w9-5jqw (moment path traversal via a crafted non-string locale name, >=2.29.2 <2.31.0), which also carried the advisories on obsidian 1.12.3, eslint-plugin-obsidianmd and @mnaoumov/obsidian-dev-toolkit. Reached through eslint-plugin-obsidianmd -> obsidian@1.12.3, which pins moment at the exact 2.29.4. The direct obsidian@1.14.4 already uses 2.31.0, so the override collapses the tree onto that one copy rather than adding a version; it is a minor move within 2.x. Mirrors the same override in obsidian-labelled-links and obsidian-file-bundles.",
-      "check": "node -e \"const fs=require('node:fs');process.stdout.write(JSON.parse(fs.readFileSync('node_modules/eslint-plugin-obsidianmd/node_modules/obsidian/package.json','utf8')).dependencies.moment)\"",
-      "expect": "2.29.4",
-      "manualCheck": "The check reads the exact moment pin of the obsidian copy eslint-plugin-obsidianmd brings (it declares obsidian 1.12.3 exactly). When eslint-plugin-obsidianmd moves to an obsidian whose moment is 2.31.0 or later, or that nested copy disappears and the check fails to read it, re-run `npm audit` without the override and drop both if it stays clean."
     },
     "typescript": {
       "section": "devDependencies",

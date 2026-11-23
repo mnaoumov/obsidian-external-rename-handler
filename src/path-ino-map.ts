@@ -137,7 +137,7 @@ export class PathInoMap extends DisposableBase {
     }
     const { birthtimeMs, ino, path, stamp } = params;
     const oldPath = this.getPath(ino);
-    const entry: DatabaseEntry = { birthtimeMs, ino, path, ...stamp && { mtime: stamp.mtime, size: stamp.size } };
+    const entry: DatabaseEntry = { birthtimeMs, ino, path, ...(stamp && { mtime: stamp.mtime, size: stamp.size }) };
     this.loadEntry(entry);
     if (oldPath !== null && oldPath !== path) {
       this.addStoreAction([PATH_PREFIX + oldPath, null]);
@@ -203,6 +203,7 @@ export class PathInoMap extends DisposableBase {
     // connection to that popout, and closing the popout then closes the connection under a plugin that is still
     // loaded and still queueing writes.
     const local = await LocalDataStore.open({
+      // eslint-disable-next-line obsidian-dev-toolkit/prefer-active-window -- The vault-owned store must outlive any popout, see above.
       factory: window.indexedDB,
       pluginId: 'external-rename-handler',
       storeId: 'path-ino-v1',
@@ -310,6 +311,7 @@ async function getResult<T>(request: IDBRequest<T>): Promise<T> {
 }
 
 async function readLegacyEntries(vaultId: string): Promise<DatabaseEntry[]> {
+  // eslint-disable-next-line obsidian-dev-toolkit/prefer-active-window -- The legacy store is vault-owned, so it opens on the main window, never a closable popout.
   const request = window.indexedDB.open(`${vaultId}/external-rename-handler`, DB_VERSION);
   const database = await getResult(request);
   try {

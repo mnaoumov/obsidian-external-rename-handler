@@ -107,7 +107,7 @@ async function setPollingMode(pollingMode: string, expectedBackend: string): Pro
           if (isMatch(node)) {
             return node;
           }
-          queue.push(...node._children ?? []);
+          queue.push(...(node._children ?? []));
         }
         throw new Error('The component was not found.');
       }

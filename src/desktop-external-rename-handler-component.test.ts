@@ -62,6 +62,10 @@ interface FileEntry {
   readonly realpath: string;
 }
 
+interface LayoutReadyWorkspaceMock {
+  readonly onLayoutReady: (callback: () => void) => void;
+}
+
 interface MutablePathFile {
   // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The rename fixture updates the file path in place.
   path: string;
@@ -181,7 +185,13 @@ vi.mock('node:fs/promises', () => {
 });
 
 vi.mock('@obsidian-typings/obsidian-public-latest/implementations', () => ({
-  getDataAdapterEx: vi.fn(() => ({ basePath: '/test-vault' }))
+  getDataAdapterEx: vi.fn(() => ({ basePath: '/test-vault' })),
+  // `LayoutReadyComponent` waits through `onLayoutReadyEx`, which hands the workspace to Obsidian's own callback.
+  onLayoutReadyEx: vi.fn((workspace: LayoutReadyWorkspaceMock, callback: (workspace: unknown) => void) => {
+    workspace.onLayoutReady(() => {
+      callback(workspace);
+    });
+  })
 }));
 
 // --- Allowed mocks: the plugin's OWN sibling modules ---
