@@ -45,7 +45,9 @@
     "vfat",
     "wdio"
   ],
-  "ignoreWords": [],
+  "ignoreWords": [
+    "docu"
+  ],
   "import": [],
   "enabled": true
 }
