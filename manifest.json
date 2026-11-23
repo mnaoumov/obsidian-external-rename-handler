@@ -1,11 +1,11 @@
 {
   "id": "external-rename-handler",
   "name": "External Rename Handler",
-  "version": "4.1.3",
+  "version": "4.1.4",
   "description": "Handles renames made outside of the app.",
   "author": "mnaoumov",
   "authorUrl": "https://github.com/mnaoumov/",
   "isDesktopOnly": true,
-  "minAppVersion": "1.15.0",
+  "minAppVersion": "1.15.1",
   "fundingUrl": "https://www.buymeacoffee.com/mnaoumov"
 }

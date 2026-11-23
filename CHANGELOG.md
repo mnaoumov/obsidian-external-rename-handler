@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 4.1.4
+
+This release has 1 improvement and 3 documentation changes. 7 maintenance commits (tests, build, CI, refactoring, dependencies) are not listed.
+
+### Improved
+
+- poll the vault only where the native watcher sees nothing
+
+### Documentation
+
+- refresh the README See also section
+- use the Obsidian downloads and minimum Obsidian version badges in the README
+- community.obsidian.md links lead to broken docu (#8)
+
 ## 4.1.3
 
 This release has 1 fix. 1 maintenance commit (tests, build, CI, refactoring, dependencies) is not listed.
