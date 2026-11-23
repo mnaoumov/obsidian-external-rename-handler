@@ -1,4 +1,5 @@
 import {
+  mkdir,
   rename,
   rm,
   writeFile
@@ -194,6 +195,37 @@ async function waitForVaultToSee(path: string, shouldExist: boolean): Promise<vo
   });
 }
 
+/*
+ * A burst this size overflows the buffer of a recursive `fs.watch` on Windows: measured on NTFS, an outside process
+ * renaming 100 notes left 68 of the new names unreported, and Windows reported the rest only as a change with no
+ * file name. Obsidian's own watcher drops that change, so its Files pane never sees the burst; `chokidar` answers it by
+ * scanning the whole tree again. With the plugin disabled, Obsidian 1.15.1 saw 146 of 300 such renames.
+ */
+const BURST_NOTE_COUNT = 300;
+const BURST_FOLDER_PATH = 'external-change-detection-burst';
+
+function getBurstNotePath(prefix: string, index: number): string {
+  return `${BURST_FOLDER_PATH}/${prefix}-${String(index).padStart(4, '0')}.md`;
+}
+
+async function waitForVaultToSeeAll(paths: readonly string[], shouldExist: boolean): Promise<void> {
+  await evalInObsidian({
+    async callback({ app, lib: { waitUntil }, paths: notePaths, shouldExist: isExpectedToExist, WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds }) {
+      await waitUntil({
+        message: `The vault ${isExpectedToExist ? 'never saw' : 'still sees'} some of the ${String(notePaths.length)} notes of the burst`,
+        predicate: () => notePaths.every((notePath) => (app.vault.getAbstractFileByPath(notePath) !== null) === isExpectedToExist),
+        timeoutInMilliseconds
+      });
+    },
+    input: {
+      paths,
+      shouldExist,
+      WAIT_TIMEOUT_IN_MILLISECONDS
+    },
+    vaultPath: getTemporaryVault().path
+  });
+}
+
 async function writeExternally(path: string, content: string): Promise<void> {
   await writeFile(getFullPath(path), content, 'utf-8');
 }
@@ -276,6 +308,30 @@ describe.each(BACKENDS)('External change detection on the $backend backend', ({ 
     await waitForVaultToSee(RENAMED_NOTE_PATH, true);
     await waitForVaultToSee(CREATED_NOTE_PATH, false);
     await waitForOpenLeafToShow(RENAMED_NOTE_PATH);
+  });
+
+  it('should reflect every note of a burst of external renames', async () => {
+    const indices = Array.from({ length: BURST_NOTE_COUNT }, (_, index) => index);
+    const oldPaths = indices.map((index) => getBurstNotePath('old', index));
+    const newPaths = indices.map((index) => getBurstNotePath('new', index));
+
+    await mkdir(getFullPath(BURST_FOLDER_PATH), { recursive: true });
+    for (const path of oldPaths) {
+      await writeExternally(path, INITIAL_CONTENT);
+    }
+    await waitForVaultToSeeAll(oldPaths, true);
+
+    try {
+      for (const [index, oldPath] of oldPaths.entries()) {
+        await rename(getFullPath(oldPath), getFullPath(newPaths[index] ?? ''));
+      }
+
+      await waitForVaultToSeeAll(newPaths, true);
+      await waitForVaultToSeeAll(oldPaths, false);
+    } finally {
+      await rm(getFullPath(BURST_FOLDER_PATH), { force: true, recursive: true });
+      await waitForVaultToSee(BURST_FOLDER_PATH, false);
+    }
   });
 
   it('should reflect an externally deleted note', async () => {
