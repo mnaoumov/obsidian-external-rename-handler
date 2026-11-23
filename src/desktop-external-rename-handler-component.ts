@@ -42,10 +42,12 @@ import type { PluginSettingsComponent } from './plugin-settings-component.ts';
 
 import { watch } from './desktop-chokidar-watch.ts';
 import { doesFolderMtimeTrackNewEntries } from './desktop-folder-mtime-probe.ts';
+import { doesNativeWatcherSeeNewEntries } from './desktop-native-watch-probe.ts';
 import { isDotFile } from './dot-file.ts';
 import { triggerOfflineRename } from './offline-rename-trigger.ts';
 import { FileSystemAdapterOnFileChangePatchComponent } from './patches/file-system-adapter-on-file-change-patch-component.ts';
 import { PathInoMap } from './path-ino-map.ts';
+import { PollingMode } from './plugin-settings.ts';
 
 const NANOSECONDS_PER_MILLISECOND = 1_000_000;
 
@@ -89,6 +91,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
   private _originalOnFileChange?: OnFileChangeFunction;
 
   private readonly abortSignalComponent: AbortSignalComponent;
+  private canNativeWatcherSeeNewEntriesPromise?: Promise<boolean>;
   private canPollingSeeNewEntriesPromise?: Promise<boolean>;
   private readonly fileSystemAdapter: FileSystemAdapter;
 
@@ -207,16 +210,20 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     await this.reportOfflineRenames(offlineRenames);
   }
 
-  /**
-   * Finds the path a file had before it was renamed or moved while Obsidian was closed.
-   *
-   * Obsidian builds its vault from the disk at startup, so such a file simply exists at its new path, and the links to
-   * its old path are left unresolved. Its inode is what still ties the two paths together.
-   *
-   * @param path - The path of a file the map did not know.
-   * @param stats - The stats of that file.
-   * @returns The old path, or `null` when the file is not a clean offline rename.
-   */
+  private async canNativeWatcherSeeNewEntries(): Promise<boolean> {
+    // Like the folder time probe below, the answer belongs to the vault's volume and is found once per component.
+    this.canNativeWatcherSeeNewEntriesPromise ??= (async (): Promise<boolean> => {
+      const canSee = await doesNativeWatcherSeeNewEntries(join(this.fileSystemAdapter.basePath, this.app.vault.configDir));
+      if (!canSee) {
+        console.warn(
+          'External Rename Handler: the native file system watcher reports no change on this drive, such as a network share, so the vault is polled.'
+        );
+      }
+      return canSee;
+    })();
+    return this.canNativeWatcherSeeNewEntriesPromise;
+  }
+
   private async canPollingSeeNewEntries(): Promise<boolean> {
     // The answer belongs to the vault's volume, so it is found once and not again on every settings save. The probe
     // folder goes in the config folder, which Obsidian hides from the vault, on the volume of the vault root.
@@ -232,6 +239,16 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     return this.canPollingSeeNewEntriesPromise;
   }
 
+  /**
+   * Finds the path a file had before it was renamed or moved while Obsidian was closed.
+   *
+   * Obsidian builds its vault from the disk at startup, so such a file simply exists at its new path, and the links to
+   * its old path are left unresolved. Its inode is what still ties the two paths together.
+   *
+   * @param path - The path of a file the map did not know.
+   * @param stats - The stats of that file.
+   * @returns The old path, or `null` when the file is not a clean offline rename.
+   */
   private getOfflineRenameOldPath(path: string, stats: Stats): null | string {
     const oldPath = this.pathInoMap.getPath(stats.ino);
     // The old path still taken means a hard link, or a new file created where the renamed one used to be. Either way
@@ -378,11 +395,9 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
   }
 
   private async registerWatcher(): Promise<void> {
-    const { pollingIntervalInMilliseconds } = this.pluginSettingsComponent.settings;
-    // Polling sees a new entry only through its folder's modification time, which the FAT32 and exFAT drivers of Windows
-    // never change, so there it would see no new file at all, and the native backend is used instead. This is awaited
-    // before anything else, so that two calls waiting on the probe go on to replace the watcher one after the other.
-    const isPolling = pollingIntervalInMilliseconds > 0 && await this.canPollingSeeNewEntries();
+    // The probes are awaited before anything else, so that two calls waiting on them go on to replace the watcher one
+    // after the other.
+    const isPolling = await this.shouldPoll();
     if (this.abortSignalComponent.abortSignal.aborted) {
       return;
     }
@@ -394,6 +409,7 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
     }
 
     const adapter = getDataAdapterEx(this.app);
+    const { pollingIntervalInMilliseconds } = this.pluginSettingsComponent.settings;
 
     this.watcher = watch('.', {
       // `chokidar` 6 rejects a polling interval that is not positive even on a native backend, so it goes to polling alone.
@@ -453,6 +469,28 @@ export class ExternalRenameHandlerComponent extends LayoutReadyComponent {
         `Detected ${String(reportedCount)} ${reportedCount === 1 ? 'rename' : 'renames'} made while Obsidian was closed.`
       );
     }
+  }
+
+  /**
+   * Decides between the polling and the native backend.
+   *
+   * Polling `stat`s every file of the vault per interval on the renderer's main thread, about half a core on a vault of
+   * 71,000 files at a 20 s interval. On a local disk the native backend sees every external change, bursts included, so
+   * `Auto` polls only where the native watcher reports nothing, such as a network share. Polling itself sees a new entry
+   * only through its folder's modification time, which the FAT32 and exFAT drivers of Windows never change, so it is not
+   * used there in any mode.
+   *
+   * @returns Whether to poll.
+   */
+  private async shouldPoll(): Promise<boolean> {
+    const { pollingIntervalInMilliseconds, pollingMode } = this.pluginSettingsComponent.settings;
+    if (pollingMode === PollingMode.Never || pollingIntervalInMilliseconds <= 0) {
+      return false;
+    }
+    if (pollingMode === PollingMode.Auto && await this.canNativeWatcherSeeNewEntries()) {
+      return false;
+    }
+    return this.canPollingSeeNewEntries();
   }
 }
 

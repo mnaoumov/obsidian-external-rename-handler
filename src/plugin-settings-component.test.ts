@@ -15,6 +15,7 @@ import {
 } from 'vitest';
 
 import { PluginSettingsComponent } from './plugin-settings-component.ts';
+import { PollingMode } from './plugin-settings.ts';
 
 interface LegacySettingsInstance {
   readonly shouldUpdateLinks: boolean;
@@ -78,6 +79,37 @@ describe('PluginSettingsComponent', () => {
       legacyConverter()(record);
 
       expect(record).not.toHaveProperty('proposedShouldHandleRenames');
+    });
+
+    it('should keep a legacy polling interval of 0 as the never polling mode with the default interval', () => {
+      registerConverters();
+      const record: GenericObject = { pollingIntervalInMilliseconds: 0 };
+
+      legacyConverter()(record);
+
+      expect(record['pollingMode']).toBe(PollingMode.Never);
+      expect(record['pollingIntervalInMilliseconds']).toBe(2000);
+    });
+
+    // The old 2-second default and any other stored interval move to the automatic mode, which stops polling a local disk.
+    it('should leave the polling mode unset for a legacy positive polling interval', () => {
+      registerConverters();
+      const record: GenericObject = { pollingIntervalInMilliseconds: 2000 };
+
+      legacyConverter()(record);
+
+      expect(record).not.toHaveProperty('pollingMode');
+      expect(record['pollingIntervalInMilliseconds']).toBe(2000);
+    });
+
+    it('should leave an interval of 0 alone once a polling mode is stored', () => {
+      registerConverters();
+      const record: GenericObject = { pollingIntervalInMilliseconds: 0, pollingMode: PollingMode.Always };
+
+      legacyConverter()(record);
+
+      expect(record['pollingMode']).toBe(PollingMode.Always);
+      expect(record['pollingIntervalInMilliseconds']).toBe(0);
     });
   });
 });
