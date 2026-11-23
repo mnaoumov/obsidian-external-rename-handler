@@ -56,11 +56,13 @@ Since **4.0.0** this plugin no longer rewrites links itself: [Advanced Rename an
 
 | Plugin | Features | How `External Rename Handler` differs |
 | --- | --- | --- |
-| [`Auto Refresh Explorer`](https://community.obsidian.md/plugins/auto-refresh-explorer) | Polls selected folders; adds externally created files | Different event scope: recognizes external renames |
-| [`Link Keeper`](https://github.com/RyotaUshio/obsidian-link-keeper) | Unlisted/experimental; pairs create/delete within 0.5 seconds by name/folder; updates links; mobile | Alternative detection: inodes; catches offline renames too; delegates link updates |
-| [`Vault File Refresh`](https://community.obsidian.md/plugins/vault-file-refresh) | Polls for externally added/changed files; Flatpak/network-drive use | Different event scope: recognizes external renames |
+| [`Auto Refresh Explorer`](https://community.obsidian.md/plugins/auto-refresh-explorer) | Polls selected folders; adds externally created files; mobile | Different event scope: recognizes external renames, not only new files |
+| [`File Explorer Reload`](https://community.obsidian.md/plugins/file-explorer-reload) (my plugin) | Reloads the File Explorer, or one folder, on demand | Complements it: reacts to every external change automatically; reports renames as renames |
+| [`Link Keeper`](https://github.com/RyotaUshio/obsidian-link-keeper) | Unlisted, experimental; pairs a delete and a create within 0.5 seconds by name and folder; updates links; mobile | Same goal, different detection: pairs by inode; catches renames made while Obsidian was closed; leaves link updates to `Advanced Rename and Delete Handler` |
+| [`Resource Link Refactor`](https://github.com/Todestrieb-0/Resource-Link-Refactor) | Unlisted; pairs a delete and a create by extension, size and modification date; updates attachment references in properties and HTML; a command for renames made while Obsidian was closed | Same goal, different detection: pairs by inode; finds offline renames by itself; covers notes too; leaves link updates to `Advanced Rename and Delete Handler` |
+| [`Vault File Refresh`](https://community.obsidian.md/plugins/vault-file-refresh) | Polls for externally added and changed files; Flatpak and network-drive use | Different event scope: recognizes external renames, not only new files |
 
-Last searched for similar plugins on 2026-10-26.
+Last searched for similar plugins on 2026-11-23.
 
 ## Installation
 
