@@ -29,6 +29,7 @@ const MOVED_NOTE_PATH = `${REFERENCES_FOLDER_PATH}/Rename me externally.md`;
 interface DemoSettingsPatch {
   readonly deletionRenameDetectionTimeoutInMilliseconds?: number;
   readonly pollingIntervalInMilliseconds?: number;
+  readonly pollingMode?: 'always' | 'auto' | 'never';
 }
 
 const FIXTURE_NOTES: Record<string, string> = {

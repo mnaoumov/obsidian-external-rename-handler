@@ -38,12 +38,13 @@ const INITIAL_CONTENT = 'initial content';
 const APPENDED_CONTENT = 'appended content';
 
 const PLUGIN_ID = 'external-rename-handler';
-const DEFAULT_POLLING_INTERVAL_IN_MILLISECONDS = 2000;
+const DEFAULT_POLLING_MODE = 'auto';
 
-// Each `chokidar` backend pairs the `unlink` and `add` of a rename on its own, so every case runs under both.
+// Each `chokidar` backend pairs the `unlink` and `add` of a rename on its own, so every case runs under both. The default
+// automatic mode must pick the native backend on the local disk the temporary vault lives on.
 const BACKENDS = [
-  { backend: 'polling', pollingIntervalInMilliseconds: DEFAULT_POLLING_INTERVAL_IN_MILLISECONDS },
-  { backend: 'auto', pollingIntervalInMilliseconds: 0 }
+  { backend: 'polling', pollingMode: 'always' },
+  { backend: 'auto', pollingMode: DEFAULT_POLLING_MODE }
 ] as const;
 
 // The slices of the plugin's component tree the backend switch reads: the settings component and the handler's `chokidar` watcher.
@@ -56,7 +57,7 @@ interface ComponentTreeNode {
 
 interface PollingSettings {
   // eslint-disable-next-line typescript-dev-toolkit/readonly-interface-members -- The settings editor switches watcher backends between test cases.
-  pollingIntervalInMilliseconds: number;
+  pollingMode: string;
 }
 
 interface WatcherOptionsSlice {
@@ -90,14 +91,14 @@ async function removeExternally(path: string): Promise<void> {
   await rm(getFullPath(path), { force: true });
 }
 
-async function setPollingInterval(pollingIntervalInMilliseconds: number, expectedBackend: string): Promise<void> {
+async function setPollingMode(pollingMode: string, expectedBackend: string): Promise<void> {
   await evalInObsidian({
     async callback({
       app,
       expectedBackend: backend,
       lib: { waitUntil },
       pluginId,
-      pollingIntervalInMilliseconds: interval,
+      pollingMode: mode,
       WAIT_TIMEOUT_IN_MILLISECONDS: timeoutInMilliseconds
     }) {
       function findNode(isMatch: (node: ComponentTreeNode) => boolean): ComponentTreeNode {
@@ -111,9 +112,9 @@ async function setPollingInterval(pollingIntervalInMilliseconds: number, expecte
         throw new Error('The component was not found.');
       }
 
-      const settingsComponent = findNode((node) => typeof node.editAndSave === 'function' && typeof node.settings?.pollingIntervalInMilliseconds === 'number');
+      const settingsComponent = findNode((node) => typeof node.editAndSave === 'function' && typeof node.settings?.pollingMode === 'string');
       await settingsComponent.editAndSave?.((settings) => {
-        settings.pollingIntervalInMilliseconds = interval;
+        settings.pollingMode = mode;
       });
 
       // Saving the settings re-creates the watcher, and an external change made before its initial scan is done can be missed.
@@ -127,7 +128,7 @@ async function setPollingInterval(pollingIntervalInMilliseconds: number, expecte
     input: {
       expectedBackend,
       pluginId: PLUGIN_ID,
-      pollingIntervalInMilliseconds,
+      pollingMode,
       WAIT_TIMEOUT_IN_MILLISECONDS
     },
     vaultPath: getTemporaryVault().path
@@ -230,13 +231,13 @@ async function writeExternally(path: string, content: string): Promise<void> {
   await writeFile(getFullPath(path), content, 'utf-8');
 }
 
-describe.each(BACKENDS)('External change detection on the $backend backend', ({ backend, pollingIntervalInMilliseconds }) => {
+describe.each(BACKENDS)('External change detection on the $backend backend', ({ backend, pollingMode }) => {
   beforeAll(async () => {
-    await setPollingInterval(pollingIntervalInMilliseconds, backend);
+    await setPollingMode(pollingMode, backend);
   });
 
   afterAll(async () => {
-    await setPollingInterval(DEFAULT_POLLING_INTERVAL_IN_MILLISECONDS, 'polling');
+    await setPollingMode(DEFAULT_POLLING_MODE, 'auto');
   });
 
   afterEach(async () => {

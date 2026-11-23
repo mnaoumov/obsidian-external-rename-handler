@@ -38,10 +38,12 @@ Everything above rests on a rename keeping the file's inode, and not every file 
 
 ## Tuning
 
-Two of the [04 Settings](<./04 Settings.md>) control the detection itself:
+Three of the [04 Settings](<./04 Settings.md>) control the detection itself:
 
+- `pollingMode`
+  - whether the vault is polled besides the native watcher. By default only where the native watcher reports nothing, such as a network share.
 - `pollingIntervalInMilliseconds`
-  - how often the safety-net poll runs.
+  - how often that poll runs.
 - `deletionRenameDetectionTimeoutInMilliseconds`
   - how long to wait before deciding a delete really was a delete and not the first half of a rename.
 

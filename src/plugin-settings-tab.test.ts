@@ -2,7 +2,8 @@ import type { PluginSettingsComponentBase } from '@mnaoumov/obsidian-lib/compone
 import type { PluginSuggestionComponent } from '@mnaoumov/obsidian-lib/components/plugin-suggestion-component';
 import type {
   Plugin,
-  SettingGroup
+  SettingGroup,
+  TAbstractFile
 } from 'obsidian';
 
 import { SuggestedPluginState } from '@mnaoumov/obsidian-lib/components/plugin-suggestion-component';
@@ -23,12 +24,19 @@ import { PluginSettings } from './plugin-settings.ts';
 
 // The banner row binds nothing; the detection rows are all that is left to bind.
 const EXPECTED_BOUND_PROPERTIES = [
+  'pollingMode',
   'pollingIntervalInMilliseconds',
   'deletionRenameDetectionTimeoutInMilliseconds',
   'shouldDetectOfflineRenames'
 ];
 
 const BANNER_ROW_INDEX = 0;
+const POLLING_INTERVAL_ROW_INDEX = 2;
+const VAULT_ENTRY_COUNT = 71_000;
+
+interface DescribedDefinition {
+  readonly desc: DocumentFragment;
+}
 
 interface SearchableDefinition {
   readonly searchable?: boolean;
@@ -59,6 +67,7 @@ describe('PluginSettingsTab', () => {
 
     expect(settingNames(tab)).toEqual([
       '',
+      'Polling',
       'Polling interval in milliseconds',
       'Deletion/rename detection timeout in milliseconds',
       'Detect renames made while Obsidian was closed'
@@ -95,6 +104,15 @@ describe('PluginSettingsTab', () => {
     expect(setting.settingEl.textContent).toBe('');
   });
 
+  // Each interval `stat`s every vault entry, so the description gives the user the count that cost scales with.
+  it('should state the number of vault entries polled per interval', () => {
+    const tab = createTab();
+    const definition = ensureNonNullable(tab.getSettingDefinitions()[POLLING_INTERVAL_ROW_INDEX]);
+    const desc = castTo<DescribedDefinition>(definition).desc;
+
+    expect(desc.textContent).toContain('71000 of them now');
+  });
+
   it('should declare every setting and bind it to the correct property when rendered', () => {
     const tab = createTab();
     // The number settings chain `.setMin(0)` off the result of `bind()`, so the spy must return the component.
@@ -124,6 +142,7 @@ function createTab(): PluginSettingsTab {
         deletionRenameDetectionTimeoutInMilliseconds: '',
         isAdvancedRenameAndDeleteHandlerSuggestionDeclined: '',
         pollingIntervalInMilliseconds: '',
+        pollingMode: '',
         proposedShouldHandleRenames: '',
         shouldDetectOfflineRenames: ''
       }
@@ -132,6 +151,9 @@ function createTab(): PluginSettingsTab {
 
   const plugin = strictProxy<Plugin>({
     app: {
+      vault: {
+        getAllLoadedFiles: vi.fn(() => castTo<TAbstractFile[]>(Array.from({ length: VAULT_ENTRY_COUNT })))
+      },
       workspace: {
         on: vi.fn().mockReturnValue({ id: 'test' })
       }

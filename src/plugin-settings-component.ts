@@ -3,7 +3,10 @@ import type { PluginEventSource } from '@mnaoumov/obsidian-lib/plugin/plugin-eve
 
 import { PluginSettingsComponentBase } from '@mnaoumov/obsidian-lib/components/plugin-settings-component';
 
-import { PluginSettings } from './plugin-settings.ts';
+import {
+  PluginSettings,
+  PollingMode
+} from './plugin-settings.ts';
 
 interface PluginSettingsComponentConstructorParams {
   readonly dataHandler: DataHandler;
@@ -31,6 +34,15 @@ export class PluginSettingsComponent extends PluginSettingsComponentBase<PluginS
       if (legacySettings.shouldUpdateLinks !== undefined) {
         legacySettings.proposedShouldHandleRenames = legacySettings.shouldUpdateLinks;
       }
+
+      // Before `pollingMode`, an interval of 0 was how polling was turned off, so that choice is kept as `Never`. Any other
+      // stored interval, the old default of 2 seconds above all, is left to `Auto`: on a local disk polling bought nothing
+      // measured and cost a `stat` of every vault file per interval.
+      if (legacySettings.pollingMode !== undefined || legacySettings.pollingIntervalInMilliseconds !== 0) {
+        return;
+      }
+      legacySettings.pollingMode = PollingMode.Never;
+      legacySettings.pollingIntervalInMilliseconds = new PluginSettings().pollingIntervalInMilliseconds;
     });
   }
 }

@@ -7,6 +7,8 @@ import { PluginSettingsTabBase } from '@mnaoumov/obsidian-lib/plugin/plugin-sett
 
 import type { PluginSettings } from './plugin-settings.ts';
 
+import { PollingMode } from './plugin-settings.ts';
+
 interface PluginSettingsTabConstructorParams extends PluginSettingsTabBaseConstructorParams<PluginSettings> {
   readonly pluginSuggestionComponent: PluginSuggestionComponent;
 }
@@ -35,15 +37,40 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
       }),
       this.settingEx({
         desc: createFragment((f) => {
-          f.appendText('Polling is an additional mechanism to detect file changes.');
+          f.appendText('How external file changes are detected besides the native file system watcher.');
           f.createEl('br');
-          f.appendText('The lower the value, the more CPU-intensive the plugin will be.');
+          f.appendText(
+            'Automatic polls only where the native watcher reports nothing, such as a network share or a WSL folder. On a local disk the native watcher sees every change, bursts included.'
+          );
           f.createEl('br');
-          f.appendText('The higher the value, the more delay might occur to detect the missed file changes.');
+          f.appendText('Always polls on a local disk too. Never relies on the native watcher alone.');
           f.createEl('br');
-          f.appendText('Use 0 to disable polling.');
+          f.appendText(
+            'A drive that never changes a folder\'s modification time, such as FAT32 or exFAT under Windows, is not polled in any mode, because polling would see no new file there.'
+          );
+        }),
+        name: 'Polling',
+        render: (setting) => {
+          setting.addDropdown((dropdown) => {
+            dropdown.addOptions({
+              [PollingMode.Always]: 'Always',
+              [PollingMode.Auto]: 'Automatic',
+              [PollingMode.Never]: 'Never'
+            });
+            this.bind({ propertyName: 'pollingMode', valueComponent: dropdown });
+          });
+        }
+      }),
+      this.settingEx({
+        desc: createFragment((f) => {
+          const fileCount = this.app.vault.getAllLoadedFiles().length;
+          f.appendText(
+            `Each polling interval reads the file system entry of every file and folder in the vault, ${String(fileCount)} of them now, on Obsidian's main thread.`
+          );
           f.createEl('br');
-          f.appendText('A drive that never changes a folder\'s modification time, such as FAT32 or exFAT under Windows, is not polled, because polling would see no new file there.');
+          f.appendText('The lower the value, the more CPU the plugin uses while polling.');
+          f.createEl('br');
+          f.appendText('The higher the value, the longer a change can take to be detected.');
         }),
         name: 'Polling interval in milliseconds',
         render: (setting) => {
@@ -52,7 +79,7 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginSettings> {
               propertyName: 'pollingIntervalInMilliseconds',
               valueComponent: numberComponent
             })
-              .setMin(0);
+              .setMin(1);
           });
         }
       }),

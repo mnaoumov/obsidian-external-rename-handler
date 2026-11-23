@@ -101,6 +101,15 @@ interface TestAdapter {
   readonly onFileChange: (path: null | string) => void;
 }
 
+/* eslint-disable typescript-dev-toolkit/readonly-interface-members -- The tests change the settings the component reads. */
+interface TestSettings {
+  deletionRenameDetectionTimeoutInMilliseconds: number;
+  pollingIntervalInMilliseconds: number;
+  pollingMode?: PollingMode;
+  shouldDetectOfflineRenames: boolean;
+}
+/* eslint-enable typescript-dev-toolkit/readonly-interface-members -- The tests change the settings the component reads. */
+
 interface WatcherMock {
   readonly add: (paths: string | string[]) => WatcherMock;
   readonly close: () => Promise<void>;
@@ -136,17 +145,20 @@ const hoisted = vi.hoisted(() => {
     set: vi.fn(),
     [Symbol.dispose]: vi.fn()
   };
+  // The polling mode is set before every test, from the enum, which is not loaded yet when this runs.
+  const settings: TestSettings = {
+    deletionRenameDetectionTimeoutInMilliseconds: 500,
+    pollingIntervalInMilliseconds: 2000,
+    shouldDetectOfflineRenames: true
+  };
 
   return {
     capturedLoadSettingsHandlers: [] as (() => Promise<void>)[],
     capturedSaveSettingsHandlers: [] as (() => Promise<void>)[],
     doesFolderMtimeTrackNewEntries: vi.fn((_parentPath: string): Promise<boolean> => Promise.resolve(true)),
+    doesNativeWatcherSeeNewEntries: vi.fn((_parentPath: string): Promise<boolean> => Promise.resolve(true)),
     pathInoMapStub,
-    settings: {
-      deletionRenameDetectionTimeoutInMilliseconds: 500,
-      pollingIntervalInMilliseconds: 2000,
-      shouldDetectOfflineRenames: true
-    },
+    settings,
     stat: vi.fn<(path: string) => Promise<Partial<Pick<Stats, 'mtimeMs' | 'size'>> & Pick<Stats, 'birthtimeMs' | 'ino'>>>(() => Promise.resolve({ birthtimeMs: 0, ino: ROOT_INO }))
   };
 });
@@ -178,6 +190,10 @@ vi.mock('./desktop-folder-mtime-probe.ts', () => ({
   doesFolderMtimeTrackNewEntries: hoisted.doesFolderMtimeTrackNewEntries
 }));
 
+vi.mock('./desktop-native-watch-probe.ts', () => ({
+  doesNativeWatcherSeeNewEntries: hoisted.doesNativeWatcherSeeNewEntries
+}));
+
 vi.mock('./path-ino-map.ts', () => ({
   PathInoMap: class {
     public clear = hoisted.pathInoMapStub.clear;
@@ -200,6 +216,8 @@ vi.mock('./path-ino-map.ts', () => ({
 
 // eslint-disable-next-line import-x/first, import-x/imports-first -- vi.mock must precede the import of the module under test.
 import { ExternalRenameHandlerComponent } from './desktop-external-rename-handler-component.ts';
+// eslint-disable-next-line import-x/first, import-x/imports-first -- vi.mock must precede the import of the module under test.
+import { PollingMode } from './plugin-settings.ts';
 
 let app: AppOriginal;
 let adapter: TestAdapter;
@@ -372,8 +390,10 @@ describe('ExternalRenameHandlerComponent', () => {
     hoisted.pathInoMapStub.init.mockResolvedValue(undefined);
     hoisted.stat.mockResolvedValue({ birthtimeMs: 0, ino: ROOT_INO });
     hoisted.doesFolderMtimeTrackNewEntries.mockResolvedValue(true);
+    hoisted.doesNativeWatcherSeeNewEntries.mockResolvedValue(true);
     hoisted.settings.deletionRenameDetectionTimeoutInMilliseconds = 500;
     hoisted.settings.pollingIntervalInMilliseconds = 2000;
+    hoisted.settings.pollingMode = PollingMode.Always;
     hoisted.settings.shouldDetectOfflineRenames = true;
     capturedLayoutReadyCallback = undefined;
     loadedFiles = [];
@@ -1030,6 +1050,49 @@ describe('ExternalRenameHandlerComponent', () => {
       hoisted.settings.pollingIntervalInMilliseconds = 0;
       await createReadyComponent();
       expect(hoisted.doesFolderMtimeTrackNewEntries).not.toHaveBeenCalled();
+      expect(hoisted.doesNativeWatcherSeeNewEntries).not.toHaveBeenCalled();
+    });
+
+    it('should use the native backend and probe nothing when the polling mode is never', async () => {
+      hoisted.settings.pollingMode = PollingMode.Never;
+      await createReadyComponent();
+      expect(getWatchOptions()).toEqual(expect.objectContaining({ backend: 'auto' }));
+      expect(getWatchOptions()).not.toHaveProperty('pollingInterval');
+      expect(hoisted.doesNativeWatcherSeeNewEntries).not.toHaveBeenCalled();
+      expect(hoisted.doesFolderMtimeTrackNewEntries).not.toHaveBeenCalled();
+    });
+
+    it('should not ask the native watcher when the polling mode is always', async () => {
+      await createReadyComponent();
+      expect(hoisted.doesNativeWatcherSeeNewEntries).not.toHaveBeenCalled();
+      expect(getWatchOptions()).toEqual(expect.objectContaining({ backend: 'polling' }));
+    });
+
+    // On a local disk the native backend sees every change, bursts included, and polling would `stat` every vault file.
+    it('should use the native backend in automatic mode when the native watcher sees new entries', async () => {
+      hoisted.settings.pollingMode = PollingMode.Auto;
+      await createReadyComponent();
+      expect(hoisted.doesNativeWatcherSeeNewEntries).toHaveBeenCalledWith(join('/test-vault', app.vault.configDir));
+      expect(getWatchOptions()).toEqual(expect.objectContaining({ backend: 'auto' }));
+      expect(getWatchOptions()).not.toHaveProperty('pollingInterval');
+      expect(hoisted.doesFolderMtimeTrackNewEntries).not.toHaveBeenCalled();
+    });
+
+    // A network share or `\\wsl.localhost`.
+    it('should poll in automatic mode when the native watcher reports nothing', async () => {
+      hoisted.settings.pollingMode = PollingMode.Auto;
+      hoisted.doesNativeWatcherSeeNewEntries.mockResolvedValue(false);
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(noop);
+      await createReadyComponent();
+      expect(getWatchOptions()).toEqual(expect.objectContaining({ backend: 'polling', pollingInterval: 2000 }));
+      expect(warnSpy).toHaveBeenCalledOnce();
+    });
+
+    it('should ask the native watcher once, not on every settings save', async () => {
+      hoisted.settings.pollingMode = PollingMode.Auto;
+      await createReadyComponent();
+      await hoisted.capturedSaveSettingsHandlers[0]?.();
+      expect(hoisted.doesNativeWatcherSeeNewEntries).toHaveBeenCalledOnce();
     });
 
     it('should not start a watcher when unloaded while probing', async () => {
